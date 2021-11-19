@@ -79,10 +79,9 @@ def processFunction(receive_data):
 
 def AI_classification():	
 	# Load Image
-	measure
+
 	img = jetson.utils.loadImage('0039.jpg')
-	CHECK TYPE(IMG) 
-	measure
+
 	# classify the image
 	class_id, confidence = net.Classify(img)
 	# find the object description
