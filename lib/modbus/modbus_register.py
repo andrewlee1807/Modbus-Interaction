@@ -9,6 +9,7 @@ class modbus_register:
     def __init__(self):
         super().__init__()
         self.config = config
+        self.config.MODBUS_ADDRESS = bytearray(0x0500)
         self.util = util
         
     def readRegister(self, startAddress, register):
