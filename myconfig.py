@@ -1,9 +1,5 @@
-# 개발 일자 : 2021.10. 01
-# 개발자 : 김용래
-# 제작사 : (주)리눅스아이티
 
 class myconfig:
-    # IP = "192.168.0.156"
 
     ''' 액션 코드 정의'''
     MODBUS_ACTION_CODE = {
@@ -16,9 +12,9 @@ class myconfig:
     '''주소 정의'''
     # 0x20(32) : action_code
     MODBUS_ADDRESS_ACTION_CODE = 0x20
-    # 0x21(33) : 판별 결과 값
+    # 0x21(33) : Result of AI-Classification
     MODBUS_ADDRESS_RESULT = 0x21
-    # 0x22(34) = 모델 변경
+    # 0x22(34) = Change AI model
     MODBUS_ADDRESS_MODEL_CHANGE = 0x22
     # 0x23(35) = 모델 변경 결과값
     MODBUS_ADDRESS_MODEL_CHANGE_RESULT = 0x23
