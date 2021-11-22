@@ -23,9 +23,9 @@ class config :
     FUNCTION_CODE_INDEX=7
     FUNCTION_CODE_SIZE=1
     # address index and size
-    ADRESS_INDEX_START = 8
-    ADRESS_INDEX_END = 10
-    ADRESS_SIZE = 2
+    ADDRESS_INDEX_START = 8
+    ADDRESS_INDEX_END = 10
+    ADDRESS_SIZE = 2
     # register, bit count length
     RESGISTERS_SIZE = 2
     COUNT_SIZE = 1
