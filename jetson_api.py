@@ -1,6 +1,6 @@
+import cv2
 import jetson.inference
 import jetson.utils
-import cv2
 import threading
 import sys
 from officialCodeCrop import *
@@ -22,13 +22,14 @@ class Service:
         # Get model name from args
         # ['predict.py', '--model=models/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
         self.model_name = "resnet18.onnx"
-        for (param, i) in enumerate(sys.argv):
-            if "--model" in param:
-                self.model_name = sys.argv[i].split(MODEL_ARG + ROOT_MODEL)[-1]  # --model=models/
-                break
-        del sys.argv[i]
+        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
 
-        self._params = sys.argv
+        # for (i, param) in enumerate(self._params):
+        #    if "--model" in param:
+        #        self.model_name = self._params[i].split(MODEL_ARG + ROOT_MODEL)[-1]  # --model=models/
+        #        break
+        # del sys.argv[i]
+
         self.__load_model()
         self.model_name_rev = None  # model receive from PLC
 
@@ -58,7 +59,7 @@ class Service:
     def __load_model(self):
         # load the recognition network
         try:
-            net = jetson.inference.imageNet("", self._params + list(self.model_name))
+            net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
             font = jetson.utils.cudaFont()
         except Exception as e:
             print(e)
