@@ -1,16 +1,27 @@
-# 개발 일자 : 2021.10. 01
-# 개발자 : 김용래
-# 제작사 : (주)리눅스아이티
-
-# from threading import Thread
 import threading
-# import mythread
 import socket
 from myconfig import myconfig
 from lib.modbus.config import config
 
 from lib.modbus.modbus_coil import modbus_coil
 from lib.modbus.modbus_register import modbus_register
+
+from jetson_api import Service
+
+# Action code
+AI_ACTION_CODE_START = 0x01 * 2
+AI_ACTION_CODE_STOP = 0x02 * 2
+AI_ACTION_CODE_RESUME = 0x03 * 2
+AI_ACTION_CODE_SUSPEND = 0x04 * 2
+
+# Error code
+ERROR_CODE_NO_PRODUCT = 0x01 * 2
+ERROR_CODE_NO_MODEL = 0x02 * 2
+ERROR_CODE_NO_WORK = 0x03 * 2
+
+
+def hex2int(hex):
+    return int(hex, 16)
 
 
 # Define forward functions
@@ -20,6 +31,7 @@ def updateClient(addr, isConnect=False):
         client_info = "The client has connected. The IP address is " + str(
             addr[0]) + " and the access port is " + str(addr[1])
         print(client_info)
+
 
 def getStringFromAddress(config, start, end):
     temp = config.MODBUS_ADDRESS[start:end]
@@ -32,10 +44,10 @@ def getStringFromAddress(config, start, end):
     print(len(temp_str))
     return temp_str
 
+
 class ServerSocket():
     def __init__(self):
-        super().__init__()
-        # self.test_set = threading.Event()
+        self.service = Service()  # AI service
 
         self.modbus_bit = modbus_coil()
         self.modbus_register = modbus_register()
@@ -65,7 +77,10 @@ class ServerSocket():
         self.bListen = False
         self.clients = []
         self.ip = []
-        self.threads = []
+        self.thread_connections = []
+
+        self.thread_classification = None
+        self.inference_run = False
 
     def getStringFromAddress(self, start, end):
         temp = self.config.MODBUS_ADDRESS[start:end]
@@ -78,19 +93,77 @@ class ServerSocket():
         print(len(temp_str))
         return temp_str
 
-    def do_request(self, msg):
+    def __extract(self, msg):
+        functionCode = msg[self.config.FUNCTION_CODE_INDEX]
+        data = None
+        packet = None
+        if functionCode == 1:
+            # msg = bytes([0,0,0,0,0,6,1,1,0,1,0,17])
+            data = self.modbus_bit.readCoil(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + data["VALUE"]
+        elif functionCode == 2:
+            data = self.modbus_bit.readDiscreteInput(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
+        elif functionCode == 3:
+            data = self.modbus_register.readHoldingReigster(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
+        elif functionCode == 4:
+            data = self.modbus_register.readInputRegister(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + data["VALUE"]
+        elif functionCode == 5:
+            data = self.modbus_bit.writeSingleCoil(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
+        elif functionCode == 6:
+            data = self.modbus_register.writeSingleRegister(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["REGISTERS"]
+        elif functionCode == 15:
+            data = self.modbus_bit.writeMultipleCoil(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
+        elif functionCode == 16:
+            data = self.modbus_register.writeMultipleRegister(msg)
+            packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["REGISTERS"]
+        return data, packet
+
+    def inference(self):
+        while self.inference_run:
+            result = self.service.classification()
+
+    def do_request(self, msg):  # as the CONTROLLER
         if type(msg) == dict:
             fc_name = self.fc_list[msg["FC"]]
             fc_int = msg["FC"]
             temp_msg = f"{fc_name} ({fc_int}) : "
-            # write 출력
+            registers_int = hex
+            # write
             if "ADDRESS" in msg:
                 startAddress = int.from_bytes(msg["ADDRESS"], byteorder='big')
                 startAddress *= 2
-                # Download url,Model Name 정보
+                # Download url,Model Name
                 if startAddress in [self.download_url, self.model_name]:
                     endAddress = startAddress + (int.from_bytes(msg["REGISTERS"], byteorder='big')) * 2
-                    temp_msg += self.getStringFromAddress(startAddress, endAddress)
+                    temp_msg += self.getStringFromAddress(startAddress, endAddress)  # download model in here
+                # Action Code
+                elif startAddress == self.action_code:
+                    action_value = int.from_bytes(msg["REGISTERS"], byteorder='big')  # consider VALUES instead
+                    if action_value in [AI_ACTION_CODE_START, AI_ACTION_CODE_RESUME]:  # inference
+                        print("Do inference")
+                        if self.inference_run is False:
+                            self.inference_run = True
+                            # create thread to execute
+                            self.thread_classification = threading.Thread(target=self.inference())
+                            self.thread_classification.start()
+
+                    elif action_value == [AI_ACTION_CODE_STOP, AI_ACTION_CODE_SUSPEND]:  # stop
+                        if self.thread_classification is not None and self.thread_classification.is_alive():
+                            self.inference_run = False
+                    else:
+                        return -1  # ERROR
+                elif startAddress in [self.model_change, self.model_download]:
+                    pass
+                elif startAddress in [self.result, self.change_result, self.model_download_result]:
+                    pass
+                else:
+                    pass
 
     def start(self, port=502):
         """Open port to listen all connections"""
@@ -98,14 +171,15 @@ class ServerSocket():
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self.server.bind((ip, port))
+            self.server.bind((ip, port))  # # Bind the IP address and the port number
         except Exception as e:
             print('Bind Error : ', e)
             return False
         else:
             self.bListen = True
-            self.t = threading.Thread(target=self.listen, args=(self.server, ip, port))
-            self.t.start()
+            t = threading.Thread(target=self.listen, args=(self.server, ip, port))
+            t.start()
+            # self.listen(self.server, ip, port)
             print('Server Listening...')
             print(f'ip : {ip}, port : {port}')
         return True
@@ -136,7 +210,7 @@ class ServerSocket():
     def listen(self, server, ip, port):
         """Catch the connection"""
         while self.bListen:
-            server.listen(5)
+            server.listen(5)  # Listen for incoming connections
             try:
                 client, addr = server.accept()
             except Exception as e:
@@ -148,9 +222,9 @@ class ServerSocket():
                 self.ip.append(addr)
                 updateClient(addr, True)
 
-                """New Thread"""
+                # Establish connection and create new thread to handle the COMMUNICATION
                 t = threading.Thread(target=self.receive, args=(addr, client))
-                self.threads.append(t)
+                self.thread_connections.append(t)
                 t.start()
 
                 # self.receive(addr, client)
@@ -174,39 +248,10 @@ class ServerSocket():
                     print(i, end=" ")
                 print()
                 if msg:
-                    functionCode = msg[self.config.FUNCTION_CODE_INDEX]
-                    data = None
-                    packet = None
-                    if functionCode == 1:
-                        # msg = bytes([0,0,0,0,0,6,1,1,0,1,0,17])
-                        data = self.modbus_bit.readCoil(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + data["VALUE"]
-                    elif functionCode == 2:
-                        data = self.modbus_bit.readDiscreteInput(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
-                    elif functionCode == 3:
-                        data = self.modbus_register.readHoldingReigster(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
-                    elif functionCode == 4:
-                        data = self.modbus_register.readInputRegister(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + data["VALUE"]
-                    elif functionCode == 5:
-                        data = self.modbus_bit.writeSingleCoil(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
-                    elif functionCode == 6:
-                        data = self.modbus_register.writeSingleRegister(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["REGISTERS"]
-                    elif functionCode == 15:
-                        data = self.modbus_bit.writeMultipleCoil(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
-                    elif functionCode == 16:
-                        data = self.modbus_register.writeMultipleRegister(msg)
-                        packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["REGISTERS"]
+                    data, packet = self.__extract(msg)
                     print(data)
-
                     # Do request from PLC
                     self.do_request(data)
-
                     self.send(packet)
                 if not msg:
                     break
@@ -232,7 +277,7 @@ class ServerSocket():
         client.close()
         self.ip.remove(addr)
         self.clients.remove(client)
-        del (self.threads[idx])
+        del (self.thread_connections[idx])
 
     def removeAllClients(self):
         for c in self.clients:
@@ -243,7 +288,7 @@ class ServerSocket():
 
         self.ip.clear()
         self.clients.clear()
-        self.threads.clear()
+        self.thread_connections.clear()
 
 
 if __name__ == '__main__':
