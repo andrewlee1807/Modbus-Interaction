@@ -1,0 +1,6 @@
+git clone https://github.com/basler/pypylon.git
+cd pypylon
+pip install .
+
+swig 설치가 안되어 있을 경우
+- sudo apt-get install swig
