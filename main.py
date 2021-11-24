@@ -79,8 +79,10 @@ class ServerSocket():
         self.ip = []
         self.thread_connections = []
 
+        # inference from jetson api
         self.thread_classification = None
         self.inference_run = False
+        self.last_detection_result = None
 
     def getStringFromAddress(self, start, end):
         temp = self.config.MODBUS_ADDRESS[start:end]
@@ -185,14 +187,20 @@ class ServerSocket():
         return True
 
     def get_ip_address(self):
+        """Get the owner ip address"""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect(("pwnbit.kr", 443))
+            sock.connect(("8.8.8.8", 80))
+        except:
+            try:
+                from subprocess import check_output
+                return check_output(['hostname', '-I']).decode("utf-8").split()[0]
+            except:
+                return "127.0.0.1"
+        else:
             ip_address = sock.getsockname()[0]
             sock.close()
             return ip_address
-        except:
-            return "127.0.0.1"
 
     def stop(self):
         try:
