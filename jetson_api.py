@@ -1,6 +1,6 @@
 import cv2
-import jetson.inference
-import jetson.utils
+# import jetson.inference
+# import jetson.utils
 import threading
 import sys
 from officialCodeCrop import *
@@ -31,7 +31,7 @@ class Service:
         # del sys.argv[i]
 
         self.__load_model()
-        self.model_name_rev = None  # model receive from PLC
+        self.model_name_change = None  # model receive from PLC
 
         self.url = None  # handle url to download
         self.download_thread = None  # thread to handle the download: Value=None or Thread
@@ -129,7 +129,10 @@ class Service:
         except Exception as e:
             print(e)
 
-    def download_model(self, url):
+    def set_download_url(self, url):
+        self.url = url
+
+    def download_model(self):
         """""Download model by URL
         Only 1 model can be downloaded at a time
         """""
@@ -138,18 +141,18 @@ class Service:
         else:  # Free thread to download
             # Create New Thread
             if self.download_thread is None:
-                self.download_thread = threading.Thread(target=self.__download_model, args=url)
+                self.download_thread = threading.Thread(target=self.__download_model, args=self.url)
                 self.download_thread.start()
 
-    def change_model_name(self, model_name: str):
-        self.model_name_rev = model_name
+    def set_model_name(self, model_name: str):
+        self.model_name_change = model_name
 
     def change_model(self):
         # Check model is available on local
         import os
-        if self.model_name_rev is not None and os.path.isfile(ROOT_MODEL + self.model_name_rev):  # model exists
-            self.model_name = self.model_name_rev
-            self.model_name_rev = None  # reset model_name_rev
+        if self.model_name_change is not None and os.path.isfile(ROOT_MODEL + self.model_name_change):  # model exists
+            self.model_name = self.model_name_change
+            self.model_name_change = None  # reset model_name_rev
             # load new model
             error = self.__load_model()
         else:
