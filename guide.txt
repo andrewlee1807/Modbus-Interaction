@@ -1,0 +1,2 @@
+- Run application as the service on terminal:
+sh run.sh
