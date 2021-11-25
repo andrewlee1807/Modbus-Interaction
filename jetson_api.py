@@ -111,7 +111,7 @@ class Service:
     def __download_model(self, url):
         import wget
         try:
-            wget.download(url, bar=False)  # self.download_thread = Thread()
+            wget.download(url, out=ROOT_MODEL, bar=False)  # self.download_thread = Thread()
         except Exception as e:
             print("Download was failed")
             print(e)
@@ -136,13 +136,13 @@ class Service:
         """""Download model by URL
         Only 1 model can be downloaded at a time
         """""
-        if self.check_download_status() == status.FAILED or self.check_download_status() == status.FINISHED:
-            return -1  # RETURN Error when request many time to download model
-        else:  # Free thread to download
+        check_status = self.check_download_status()
+        if self.check_download_status() != status.PROCESSING:  # Free thread to download
             # Create New Thread
-            if self.download_thread is None:
-                self.download_thread = threading.Thread(target=self.__download_model, args=self.url)
-                self.download_thread.start()
+            self.download_thread = threading.Thread(target=self.__download_model, args=(self.url,))
+            self.download_thread.start()
+        else:  # still download
+            return -1  # RETURN Error when request many time to download model
 
     def set_model_name(self, model_name: str):
         self.model_name_change = model_name

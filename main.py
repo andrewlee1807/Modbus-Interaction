@@ -24,6 +24,8 @@ class status:
     PROCESSING = 1
     FAILED = 2  # defect in case classification
     FINISHED = 3  # Ok in case classification
+    OFF = 0
+    ON = 1
 
 
 def hex2int(hex):
@@ -107,20 +109,17 @@ class ServerSocket():
 
         self.thread_change_model = None
 
-        # Write Single Register| FC=6
-        self.thread_write_single = None  # includes: Action(start, stop,..), Change model
+        self.thread_inference = None  # includes: Action(start, stop,..)
         self.thread_downloading = None  # special thread to download model
 
     def getStringFromAddress(self, start, end):
         temp = self.config.MODBUS_ADDRESS[start:end]
-        print(len(temp))
-        temp_str = ""
+        value_recv = ""
         for i in range(0, len(temp), 2):
             temp_hex = (temp[i] << 8) + temp[i + 1]
-            temp_str += chr(temp_hex)
-        print(temp_str)
-        print(len(temp_str))
-        return temp_str
+            value_recv += chr(temp_hex)
+        print("Received from client:", value_recv)
+        return value_recv
 
     def __extract(self, msg):
         """Extract the request information"""
@@ -152,7 +151,7 @@ class ServerSocket():
         elif functionCode == 16:
             data = self.modbus_register.writeMultipleRegister(msg)
 
-        return data, packet
+        return data
 
     def inference(self):
         # result = self.service.classification()
@@ -168,7 +167,7 @@ class ServerSocket():
             if "ADDRESS" in data:
                 startAddress = int.from_bytes(data["ADDRESS"], byteorder='big')
                 startAddress *= 2
-                # Download url,Model Name
+                # Get the URL, Model Name
                 if startAddress in [self.set_download_url, self.set_model_name]:
                     endAddress = startAddress + (int.from_bytes(data["REGISTERS"], byteorder='big')) * 2
                     value = self.getStringFromAddress(startAddress, endAddress)
@@ -180,45 +179,47 @@ class ServerSocket():
                     return packet
                 # Action Code
                 elif startAddress == self.action_code:
-                    action_value = int.from_bytes(data["VALUE"], byteorder='big')
+                    action_value = int.from_bytes(data["VALUE"], byteorder='big') * 2
                     if action_value in [AI_ACTION_CODE_START, AI_ACTION_CODE_RESUME]:  # inference
                         print("Do inference")
                         # create thread to execute
-                        self.thread_write_single = threading.Thread(target=self.inference())
-                        self.thread_write_single.start()
+                        if self.thread_inference is None:
+                            self.thread_inference = threading.Thread(target=self.inference())
+                            self.thread_inference.start()
 
-                    elif action_value == [AI_ACTION_CODE_STOP, AI_ACTION_CODE_SUSPEND]:  # stop or pause
-                        pass
-                    else:
-                        return -1  # ERROR
+                    # elif action_value in [AI_ACTION_CODE_STOP, AI_ACTION_CODE_SUSPEND]:  # stop or pause
+                    #     pass
+                    # else:
+                    #     return -1  # ERROR
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+                # Start to download model from url
                 elif startAddress in [self.start_model_download]:
-                    self.service.download_model()
+                    value_int = int.from_bytes(data["VALUE"], byteorder='big')
+                    if value_int == status.ON:
+                        self.service.download_model()
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
                 elif startAddress in [self.start_model_change]:
                     self.thread_change_model = threading.Thread(target=self.service.change_model)
                     self.thread_change_model.start()
                 # Get result Classification
                 elif startAddress in [self.get_result_classification]:
-                    check_thread = check_thread_alive(self.thread_write_single)
+                    check_thread = check_thread_alive(self.thread_inference)
                     # finished thread
                     if check_thread == status.FINISHED or (
                             check_thread == status.FAILED and self.last_detection_result is not None):
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + int_to_2_bytes(
-                            self.last_detection_result)  # data["VALUE"]
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(self.last_detection_result)
                         self.last_detection_result = None  # reset result
                         return packet
                     else:  # processing
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + int_to_2_bytes(
-                            status.PROCESSING)
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(status.PROCESSING)
                         return packet
                 elif startAddress in [self.get_result_change_model]:
                     check_thread = check_thread_alive(self.thread_change_model)
-                    packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + int_to_2_bytes(check_thread)
+                    packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
                     return packet
                 elif startAddress in [self.model_download_result]:
                     check_thread = check_thread_alive(self.thread_downloading)
-                    packet = data["MBAP"] + bytes([data["FC"]]) + bytes([data["COUNT"]]) + int_to_2_bytes(check_thread)
+                    packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
                     return packet
 
                 else:
