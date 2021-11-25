@@ -1,6 +1,6 @@
 import cv2
-# import jetson.inference
-# import jetson.utils
+import jetson.inference
+import jetson.utils
 import threading
 import sys
 from officialCodeCrop import *
@@ -13,9 +13,12 @@ MODEL_ARG = "--model="  # argv for load model by jetson
 
 class status:
     PROCESSING = 1
-    FAILED = 2
-    FINISHED = 3
+    FAILED = 2  # defect
+    FINISHED = 3 # OK
+    NO_FILE = 4 # no file availabletson_api.py", line 1
 
+def check_file_availble(path):
+    return os.path.isfile(ROOT_MODEL + self.model_name_change)
 
 class Service:
     def __init__(self):
@@ -59,7 +62,9 @@ class Service:
     def __load_model(self):
         # load the recognition network
         try:
-            net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
+            t = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
+            # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
+            net = jetson.inference.imageNet("", self._params + [MODEL_ARG + ROOT_MODEL + self.model_name])
             font = jetson.utils.cudaFont()
         except Exception as e:
             print(e)
@@ -68,8 +73,16 @@ class Service:
             self.net = net
             self.font = font
             return status.FINISHED
+    
+    def check_model_changed_successful(self):
+        if self.model_name_change != self.model_name:
+            # Check file available?
+            check_file_availble("")
+            return status.FAILED
+        else: 
+            return status.FINISHED
 
-    def classification(self, path_img='0039.jpg'):
+    def classification(self, path_img='data/defective/23945062_20211015_133117_956.tiff'):
         """Classification image: OK or DEFECTIVE
         path_img: string path
         """
@@ -86,12 +99,13 @@ class Service:
         """new preprocessing"""
         I = cv2.imread(path_img)  # load file by opencv
         c = apple_detect(I)
-        if c is not None:
-            I = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)
-            img = jetson.utils.cudaFromNumpy(I)  # convert image from numpy
+        if (c.size != 0):
+            c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB) #convert to RGB order
+            img = jetson.utils.cudaFromNumpy(c) #convert image from numpy
         else:
             print('Apple is not detected!')
-            return -1  # ERROR
+            return status.FAILED
+        
         # finish preprocessing
 
         # classify the image
@@ -102,11 +116,11 @@ class Service:
         self.font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5,
                               self.font.White, self.font.Gray40)
         # Save output image
-        jetson.utils.saveImage('0039_out.jpg', img)
         print('Network name: ' + self.net.GetNetworkName())
         print('Network speed: ' + str(self.net.GetNetworkFPS()))
+        print("class_id+1", class_id)
         self.net.PrintProfilerTimes()
-        return class_id
+        return class_id+1
 
     def __download_model(self, url):
         import wget

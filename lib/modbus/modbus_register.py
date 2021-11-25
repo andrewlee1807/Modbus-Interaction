@@ -68,7 +68,6 @@ class modbus_register:
         mbap_len = self.util.int_to_2bytes(mbap_len)
         mbap = recv_mbap[:4] + mbap_len + bytes([recv_mbap[6]])
 
-        # where is address?
         # return {
         #     "MBAP": mbap,
         #     "FC": fc,
@@ -79,7 +78,9 @@ class modbus_register:
             "MBAP": mbap,
             "FC": fc,
             "ADDRESS": data[0:2],
-            "REGISTERS": data[2:4]
+            "REGISTERS": data[2:4],
+            "COUNT": adu["COUNT"],
+            "VALUE": adu["VALUE"]
         }
 
     def writeSingleRegister(self, msg):

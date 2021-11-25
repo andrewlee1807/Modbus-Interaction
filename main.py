@@ -26,6 +26,7 @@ class status:
     FINISHED = 3  # Ok in case classification
     OFF = 0
     ON = 1
+    NO_FILE = 4 # no file available
 
 
 def hex2int(hex):
@@ -154,8 +155,8 @@ class ServerSocket():
         return data
 
     def inference(self):
-        # result = self.service.classification()
-        self.last_detection_result = 1
+        self.last_detection_result = self.service.classification()
+        # self.last_detection_result = status.FINISHED 
 
     def do_request(self, data):  # control the jetson's jobs
         if type(data) == dict:
@@ -169,6 +170,7 @@ class ServerSocket():
                 startAddress *= 2
                 # Get the URL, Model Name
                 if startAddress in [self.set_download_url, self.set_model_name]:
+                    print("Get the URL, Model Name")
                     endAddress = startAddress + (int.from_bytes(data["REGISTERS"], byteorder='big')) * 2
                     value = self.getStringFromAddress(startAddress, endAddress)
                     if startAddress == self.set_download_url:
@@ -194,31 +196,37 @@ class ServerSocket():
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
                 # Start to download model from url
                 elif startAddress in [self.start_model_download]:
+                    print("Start to download model from url")
                     value_int = int.from_bytes(data["VALUE"], byteorder='big')
                     if value_int == status.ON:
                         self.service.download_model()
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
                 elif startAddress in [self.start_model_change]:
+                    print("Start to change model")
                     self.thread_change_model = threading.Thread(target=self.service.change_model)
                     self.thread_change_model.start()
                 # Get result Classification
                 elif startAddress in [self.get_result_classification]:
+                    print("Get result Classification")
                     check_thread = check_thread_alive(self.thread_inference)
                     # finished thread
-                    if check_thread == status.FINISHED or (
-                            check_thread == status.FAILED and self.last_detection_result is not None):
+                    if self.last_detection_result is not None:
+                    #if check_thread == status.FINISHED:
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(self.last_detection_result)
-                        self.last_detection_result = None  # reset result
+                        #self.last_detection_result = None  # reset result
                         return packet
                     else:  # processing
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(status.PROCESSING)
                         return packet
                 elif startAddress in [self.get_result_change_model]:
+                    print("get_result_change_model")
                     check_thread = check_thread_alive(self.thread_change_model)
                     packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
                     return packet
                 elif startAddress in [self.model_download_result]:
+                    print("model_download_result")
                     check_thread = check_thread_alive(self.thread_downloading)
+                    # if check_thread == status.FINISHED and 
                     packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
                     return packet
 

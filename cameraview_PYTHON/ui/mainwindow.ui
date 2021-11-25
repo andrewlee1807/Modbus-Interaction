@@ -35,6 +35,13 @@
        <number>200</number>
       </property>
       <item>
+       <widget class="QPushButton" name="btnCapture">
+        <property name="text">
+         <string>캡쳐</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="btn_viewerStart">
         <property name="text">
          <string>시작</string>

@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 import math
-
-
 # import matplotlib.pyplot as plt
 
 def fillHoles(img):
@@ -16,7 +14,6 @@ def fillHoles(img):
     im_out = ~canvas | img.astype(np.uint8)
     del canvas, mask
     return im_out
-
 
 def find_apples(img_bw):
     cnts, _ = cv2.findContours(img_bw.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -40,12 +37,11 @@ def find_apples(img_bw):
         del cnts, cnt, bou
         return out, BB
 
-
 def apple_segment(I):
     GAD1 = cv2.GaussianBlur(I, ksize=(0, 0), sigmaX=2, borderType=cv2.BORDER_REPLICATE)
-    R = np.asarray(GAD1[:, :, 2], dtype=np.float).copy()
-    G = np.asarray(GAD1[:, :, 1], dtype=np.float).copy()
-    B = np.asarray(GAD1[:, :, 0], dtype=np.float).copy()
+    R = np.asarray(GAD1[:,:, 2], dtype=np.float).copy()
+    G = np.asarray(GAD1[:,:, 1], dtype=np.float).copy()
+    B = np.asarray(GAD1[:,:, 0], dtype=np.float).copy()
 
     RG = R - G
     RG = np.maximum(RG, 0)
@@ -53,20 +49,20 @@ def apple_segment(I):
     RG[RG < 20] = 0
     RG[RG >= 20] = 255
     RG = np.asarray(RG, dtype=np.uint8)
-    for i in range(5):
+    for i in range (5):
         RG = cv2.medianBlur(RG, 3)
 
     RB = R - B
     RB[RB >= 40] = 255
     RB[RB < 40] = 0
     RB = np.asarray(RB, dtype=np.uint8)
-    for i in range(5):
+    for i in range (5):
         RB = cv2.medianBlur(RB, 3)
 
     Common = RB.copy() | RG.copy()
-    del GAD1, R, G, B, RG, RB
+    del GAD1, R, G ,B, RG, RB
 
-    se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * 5 - 1, 2 * 5 - 1))
+    se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*5-1, 2*5-1))
     Common = cv2.morphologyEx(Common, cv2.MORPH_CLOSE, se)
     Common = fillHoles(Common.copy())
     Common = cv2.morphologyEx(Common, cv2.MORPH_OPEN, se)
@@ -75,27 +71,26 @@ def apple_segment(I):
 
     return out, BB
 
-
 def apple_detect(I):
-    h_old, w_old, c = I.shape
+    h_old, w_old, c =  I.shape
     ratio = int(round(np.log2(max(h_old, w_old) / 512)))
     GAD1 = I.copy()
-    for i in range(ratio):
+    for i in range (ratio):
         GAD1 = cv2.pyrDown(GAD1)
     GAD = GAD1.copy()
 
     h_new, w_new, c = GAD.shape
 
     GAD = cv2.GaussianBlur(GAD.copy(), ksize=(0, 0), sigmaX=2, borderType=cv2.BORDER_REPLICATE)
-    R = np.asarray(GAD[:, :, 2], dtype=np.float).copy()
-    G = np.asarray(GAD[:, :, 1], dtype=np.float).copy()
-    B = np.asarray(GAD[:, :, 0], dtype=np.float).copy()
+    R = np.asarray(GAD[:,:, 2], dtype=np.float).copy()
+    G = np.asarray(GAD[:,:, 1], dtype=np.float).copy()
+    B = np.asarray(GAD[:,:, 0], dtype=np.float).copy()
 
-    # Red apple
+    #Red apple
     RG = R - G
     red_apple = np.logical_and((RG > 5), (B < 60))
 
-    # But some apple may green
+    #But some apple may green
     Rg = np.multiply(R, np.logical_not(red_apple) * 1.0)
     Gg = np.multiply(G, np.logical_not(red_apple) * 1.0)
     Bg = np.multiply(B, np.logical_not(red_apple) * 1.0)
@@ -109,7 +104,7 @@ def apple_detect(I):
     del Rg, Gg, Bg, RgBg, GgBg, blue_apple, red_apple, RG
 
     se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-    closeBW_rg = cv2.morphologyEx(np.asarray(apple * 1.0, dtype=np.uint8), cv2.MORPH_OPEN, se)
+    closeBW_rg = cv2.morphologyEx(np.asarray(apple*1.0, dtype = np.uint8), cv2.MORPH_OPEN, se)
     apple = fillHoles(closeBW_rg.copy())
     apple, BB = find_apples(apple)
     if apple is not None:
@@ -119,10 +114,10 @@ def apple_detect(I):
 
         apple, BB = apple_segment(cropOut)
         if apple is not None:
-            dichtam = [np.power(2, ratio) * (BB[0] - h_new / 2) + h_old / 2,
-                       np.power(2, ratio) * (BB[1] - w_new / 2) + w_old / 2,
-                       np.power(2, ratio) * (BB[0] + BB[2] - h_new / 2) + h_old / 2,
-                       np.power(2, ratio) * (BB[1] + BB[3] - w_new / 2) + w_old / 2]
+            dichtam = [np.power(2, ratio) * (BB[0] - h_new/2) + h_old/2,
+                       np.power(2, ratio) * (BB[1] - w_new/2) + w_old/2,
+                       np.power(2, ratio) * (BB[0] + BB[2] - h_new/2) + h_old/2,
+                       np.power(2, ratio) * (BB[1] + BB[3] - w_new/2) + w_old/2]
             dichtam = np.asarray(dichtam, dtype=np.int)
 
             crop = I[dichtam[1]:dichtam[3], dichtam[0]:dichtam[2], :]

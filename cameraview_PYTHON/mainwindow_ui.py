@@ -15,8 +15,12 @@ class MainWindowClass(QMainWindow,mainwindowUiForm):
 
         self.btn_viewerStart.clicked.connect(self.cam_start)
         self.btn_viewerStop.clicked.connect(self.cam_stop)
+        self.btnCapture.clicked.connect(self.cam_capture)
         self.mycam0 = ImageViewer(self.lb_imageViewer)
         self.camera_seacher = CameraConnectorClass(self)
+
+    def cam_capture(self):
+        self.camera_seacher.cam_capture_switch(True)
 
     def cam_start(self):
         self.camera_seacher.cam_start()
