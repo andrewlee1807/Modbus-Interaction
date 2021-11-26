@@ -7,79 +7,20 @@ from lib.modbus.modbus_coil import modbus_coil
 from lib.modbus.modbus_register import modbus_register
 
 from jetson_api import Service
-
-# Action code
-AI_ACTION_CODE_START = 0x01 * 2
-AI_ACTION_CODE_STOP = 0x02 * 2
-AI_ACTION_CODE_RESUME = 0x03 * 2
-AI_ACTION_CODE_SUSPEND = 0x04 * 2
-
-# Error code
-ERROR_CODE_NO_PRODUCT = 0x01 * 2
-ERROR_CODE_NO_MODEL = 0x02 * 2
-ERROR_CODE_NO_WORK = 0x03 * 2
-
-
-class status:
-    PROCESSING = 1
-    FAILED = 2  # defect in case classification
-    FINISHED = 3  # Ok in case classification
-    OFF = 0
-    ON = 1
-    NO_FILE = 4 # no file available
-
-
-def hex2int(hex):
-    return int(hex, 16)  # int.from_bytes(hex)
-
-
-def int_to_2_bytes(int_value):
-    return bytes([0, int_value])
-
-
-# Define forward functions
-def updateClient(addr, isConnect=False):
-    """Connection of client's status"""
-    if isConnect:
-        client_info = "The client has connected. The IP address is " + str(
-            addr[0]) + " and the access port is " + str(addr[1])
-        print(client_info)
-
-
-def getStringFromAddress(config, start, end):
-    temp = config.MODBUS_ADDRESS[start:end]
-    print(len(temp))
-    temp_str = ""
-    for i in range(0, len(temp), 2):
-        temp_hex = (temp[i] << 8) + temp[i + 1]
-        temp_str += chr(temp_hex)
-    print(temp_str)
-    print(len(temp_str))
-    return temp_str
-
-
-def check_thread_alive(thread):
-    try:
-        if thread is None:  # no thread
-            return status.FAILED
-        elif thread.is_alive():  # alive
-            return status.PROCESSING
-        else:
-            thread = None  # reset WITH ONE TIME CHECK STATUS SUCCESSFULLY
-            return status.FINISHED
-    except Exception as e:
-        print(e)
+from utils import *
 
 
 class ServerSocket():
     def __init__(self):
         self.service = Service()  # AI service
-
+        self.log_obj = log_obj
+        """Load modbus api"""
         self.modbus_bit = modbus_coil()
         self.modbus_register = modbus_register()
-        self.config = config
 
+        """Load the CODE configs"""
         self.myConfig = myconfig
+        self.config = config
         self.fc_list = self.config.fc_list
         # ActionCode
         self.action_code = (self.myConfig.MODBUS_ADDRESS_ACTION_CODE) * 2
@@ -106,12 +47,21 @@ class ServerSocket():
         self.thread_connections = []
 
         # inference from jetson api
-        self.last_detection_result = None
+        self.last_detection_result = ErrorCode.NO_MODEL
 
-        self.thread_change_model = None
-
+        self.thread_change_model = None  # Change new model
         self.thread_inference = None  # includes: Action(start, stop,..)
-        self.thread_downloading = None  # special thread to download model
+        self.thread_downloading = None  # Thread to download model
+
+    def updateClient(self, addr, isConnect=False):
+        """Connection of client's status"""
+        if isConnect:
+            client_info = "The client has connected. The IP address is " + str(
+                addr[0]) + " and the access port is " + str(addr[1])
+            self.log_obj.export_message(client_info, Notice.INFO)
+        else:
+            client_info = f"The client {addr[0]} has disconnected and closed {addr[1]} port"
+            self.log_obj.export_message(client_info, Notice.INFO)
 
     def getStringFromAddress(self, start, end):
         temp = self.config.MODBUS_ADDRESS[start:end]
@@ -143,34 +93,33 @@ class ServerSocket():
         elif functionCode == 5:
             data = self.modbus_bit.writeSingleCoil(msg)
             packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
+
         elif functionCode == 6:
             data = self.modbus_register.writeSingleRegister(msg)
+        elif functionCode == 16:
+            data = self.modbus_register.writeMultipleRegister(msg)
 
         elif functionCode == 15:
             data = self.modbus_bit.writeMultipleCoil(msg)
             packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["length"]
-        elif functionCode == 16:
-            data = self.modbus_register.writeMultipleRegister(msg)
+        return data, packet
 
-        return data
+    def __create_error_message(self, data, error_type):  # => MBAP-FC-VALUE
+        return data["MBAP"] + bytes([data["FC"] + 0x80]) + two_bytes(error_type)
 
     def inference(self):
         self.last_detection_result = self.service.classification()
-        # self.last_detection_result = status.FINISHED 
+        # self.last_detection_result = status.GOOD
 
     def do_request(self, data):  # control the jetson's jobs
         if type(data) == dict:
-            func_name = self.fc_list[data["FC"]]
-            func_int = data["FC"]
-            temp_msg = f"{func_name} ({func_int}) : "
-            registers_int = hex
             # write
             if "ADDRESS" in data:
                 startAddress = int.from_bytes(data["ADDRESS"], byteorder='big')
                 startAddress *= 2
-                # Get the URL, Model Name
+                # Receive new the URL, Model Name => MBAP + FC + ADDRESS + REGISTERS (same with request)
                 if startAddress in [self.set_download_url, self.set_model_name]:
-                    print("Get the URL, Model Name")
+                    print("Receive the URL| Model Name ")
                     endAddress = startAddress + (int.from_bytes(data["REGISTERS"], byteorder='big')) * 2
                     value = self.getStringFromAddress(startAddress, endAddress)
                     if startAddress == self.set_download_url:
@@ -179,59 +128,82 @@ class ServerSocket():
                         self.service.set_model_name(value)
                     packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["REGISTERS"]
                     return packet
-                # Action Code
+
+                # ACTION CODE => MBAP + FC + ADDRESS + REGISTERS (same with request)
                 elif startAddress == self.action_code:
                     action_value = int.from_bytes(data["VALUE"], byteorder='big') * 2
-                    if action_value in [AI_ACTION_CODE_START, AI_ACTION_CODE_RESUME]:  # inference
-                        print("Do inference")
+                    if action_value in [AI_ACTION_CODE.START, AI_ACTION_CODE.RESUME]:  # inference
+                        print("Do inference..")
                         # create thread to execute
                         if self.thread_inference is None:
                             self.thread_inference = threading.Thread(target=self.inference())
                             self.thread_inference.start()
-
-                    # elif action_value in [AI_ACTION_CODE_STOP, AI_ACTION_CODE_SUSPEND]:  # stop or pause
-                    #     pass
-                    # else:
-                    #     return -1  # ERROR
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
-                # Start to download model from url
+
+                # Start to download model from url => MBAP-FC-ADDRESS-VALUE (same with do_request)
                 elif startAddress in [self.start_model_download]:
                     print("Start to download model from url")
                     value_int = int.from_bytes(data["VALUE"], byteorder='big')
-                    if value_int == status.ON:
-                        self.service.download_model()
+                    if value_int == Status.ON and self.thread_downloading != Status.PROCESSING:  # Free thread to download
+                        self.thread_downloading = threading.Thread(target=self.service.download_model)
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+
+                # Get the result's download url => MBAP-FC-COUNT-VALUE
+                elif startAddress in [self.model_download_result]:
+                    print("Get the result's download url")
+                    check_thread = check_thread_alive(self.thread_downloading)
+                    if check_thread == Status.PROCESSING:
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
+                    else:
+                        result = self.service.get_download_result()
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
+                    return packet
+
+                # Start to change new model
                 elif startAddress in [self.start_model_change]:
                     print("Start to change model")
                     self.thread_change_model = threading.Thread(target=self.service.change_model)
                     self.thread_change_model.start()
-                # Get result Classification
+                    return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+
+                # Get result's Classification => MBAP-FC-COUNT-VALUE
                 elif startAddress in [self.get_result_classification]:
                     print("Get result Classification")
                     check_thread = check_thread_alive(self.thread_inference)
-                    # finished thread
-                    if self.last_detection_result is not None:
-                    #if check_thread == status.FINISHED:
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(self.last_detection_result)
-                        #self.last_detection_result = None  # reset result
-                        return packet
-                    else:  # processing
-                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + int_to_2_bytes(status.PROCESSING)
-                        return packet
+                    if check_thread == Status.PROCESSING:
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
+                    else:
+                        if self.last_detection_result == ErrorCode.NO_MODEL:
+                            packet = self.__create_error_message(data, ErrorCode.NO_MODEL)
+                        elif self.last_detection_result == ErrorCode.NO_PRODUCT:
+                            packet = self.__create_error_message(data, ErrorCode.NO_PRODUCT)
+                        else:
+                            packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + \
+                                     two_bytes(self.last_detection_result)
+                    return packet
+
+                # Get the result's change new model => MBAP-FC-COUNT-VALUE
                 elif startAddress in [self.get_result_change_model]:
                     print("get_result_change_model")
                     check_thread = check_thread_alive(self.thread_change_model)
-                    packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
-                    return packet
-                elif startAddress in [self.model_download_result]:
-                    print("model_download_result")
-                    check_thread = check_thread_alive(self.thread_downloading)
-                    # if check_thread == status.FINISHED and 
-                    packet = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + int_to_2_bytes(check_thread)
+                    if check_thread == Status.PROCESSING:
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
+                    else:
+                        result = self.service.get_download_result()
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
                     return packet
 
-                else:
+                # Start to change collector or detector
+                # TODO:
+                elif startAddress in [self.coll_disc_trans]:
                     return -1
+                else:
+                    log_obj.export_message("ADDRESS IS NOT DEFINED BEFORE", Notice.EXCEPTION)
+            else:
+                log_obj.export_message("ADDRESS IS NOT DEFINED BEFORE TO DO REQUEST", Notice.EXCEPTION)
+        else:
+            log_obj.export_message("DATA CANNOT EXTRACT TO DICT", Notice.ERROR)
+        return -1
 
     def start(self, port=502):
         """Open port to listen all connections"""
@@ -242,6 +214,8 @@ class ServerSocket():
             self.server.bind((ip, port))  # # Bind the IP address and the port number
         except Exception as e:
             print('Bind Error : ', e)
+            self.log_obj.export_message("CANNOT START THE SERVER", Notice.CRITICAL)
+            self.log_obj.export_message(e, Notice.CRITICAL)
             return False
         else:
             self.bListen = True
@@ -250,11 +224,11 @@ class ServerSocket():
             # self.listen(self.server, ip, port)
             print('Server Listening...')
             print(f'ip : {ip}, port : {port}')
+            self.log_obj.export_message("SERVER STARTED SUCCESSFULLY..", Notice.INFO)
         return True
 
     def get_ip_address(self):
         """Get the owner ip address"""
-
         try:
             host_ip = socket.gethostbyname('www.google.com')  # what is my ip?
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -264,6 +238,7 @@ class ServerSocket():
                 from subprocess import check_output
                 return check_output(['hostname', '-I']).decode("utf-8").split()[0]
             except:
+                self.log_obj.export_message("CANNOT PUBLIC PORT ON SERVER!", Notice.CRITICAL)
                 return "127.0.0.1"
         else:
             ip_address = sock.getsockname()[0]
@@ -280,7 +255,8 @@ class ServerSocket():
             print('Server Closing...')
             return False
         except Exception as e:
-            print("Server Stop() Error : ", e)
+            self.log_obj.export_message("SERVER CANNOT STOP!", Notice.ERROR)
+            self.log_obj.export_message(e, Notice.ERROR)
             return True
 
     def listen(self, server, ip, port):
@@ -290,13 +266,14 @@ class ServerSocket():
             try:
                 client, addr = server.accept()
             except Exception as e:
-                print('Accept() Error : ', e)
+                self.log_obj.export_message("SERVER ESTABLISHED ERROR!", Notice.EXCEPTION)
+                self.log_obj.export_message(e, Notice.EXCEPTION)
                 break
             else:
                 """ Create new threading to handle new connection"""
                 self.clients.append(client)
                 self.ip.append(addr)
-                updateClient(addr, True)
+                self.updateClient(addr, True)
 
                 # Establish connection and create new thread to handle the COMMUNICATION
                 t = threading.Thread(target=self.receive, args=(addr, client))
@@ -315,18 +292,27 @@ class ServerSocket():
                 # This is message from client
                 msg = client.recv(1024)
             except Exception as e:
-                print('Receive message function Error :', e)
+                self.log_obj.export_message("ERROR RECEIVE DATA FROM CLIENT", Notice.EXCEPTION)
+                self.log_obj.export_message(e, Notice.EXCEPTION)
                 break
             else:
-                print("Receive packet from PLC: ")
+                self.log_obj.export_message("Received packet from client.", Notice.INFO)
                 for i in msg:
                     print(i, end=" ")
                 print()
                 if msg:
-                    data = self.__extract(msg)
-                    print(data)
-                    # Do the request
-                    packet_response = self.do_request(data)
+                    try:
+                        data, packet_exception = self.__extract(msg)
+                        print(data)
+                        # Do the request
+                        packet_response = self.do_request(data)
+                        if packet_response == -1:
+                            packet_response = packet_exception
+                    except Exception as e:
+                        log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
+                        log_obj.export_message(e, Notice.CRITICAL)
+                        packet_response = self.__create_error_message(data,
+                                                                      ErrorCode.NO_WORK)  # should be fixed value error
                     self.send(packet_response)
                 if not msg:
                     break
@@ -341,6 +327,8 @@ class ServerSocket():
                 c.send(msg)
         except Exception as e:
             print('Send message function Error : ', e)
+            self.log_obj.export_message("CANNOT SEND MESSAGE TO CLIENT", Notice.CRITICAL)
+            self.log_obj.export_message(e, Notice.CRITICAL)
 
     def removeClient(self, addr, client):
         idx = -1
@@ -348,8 +336,8 @@ class ServerSocket():
             if v == client:
                 idx = k
                 break
-        print(f"{addr} client exit")
         client.close()
+        self.log_obj.export_message(f"Client {addr} exited", Notice.INFO)
         self.ip.remove(addr)
         self.clients.remove(client)
         del (self.thread_connections[idx])
@@ -359,7 +347,7 @@ class ServerSocket():
             c.close()
 
         for addr in self.ip:
-            updateClient(addr, False)
+            self.updateClient(addr)
 
         self.ip.clear()
         self.clients.clear()

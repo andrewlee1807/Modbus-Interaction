@@ -1,9 +1,9 @@
-import cv2
-import jetson.inference
-import jetson.utils
+# import jetson.inference
+# import jetson.utils
 import threading
-import sys
 from officialCodeCrop import *
+from utils import *
+from pypylon import pylon
 
 HEIGHT = 256
 WIDTH = 256
@@ -11,137 +11,189 @@ ROOT_MODEL = "models/"  # Storage all models in this path
 MODEL_ARG = "--model="  # argv for load model by jetson
 
 
-class status:
-    PROCESSING = 1
-    FAILED = 2  # defect
-    FINISHED = 3 # OK
-    NO_FILE = 4 # no file availabletson_api.py", line 1
+class ModelA:
+    """FOR Apple DETECTION"""
 
-def check_file_availble(path):
-    return os.path.isfile(ROOT_MODEL + self.model_name_change)
+    def __init__(self, model_name="resnet18.onnx"):
+        self.model_dir = ROOT_MODEL + model_name
+        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt'] + \
+                       [MODEL_ARG + self.model_dir]
+        self.__network = None
+
+    def load_model(self):
+        # load the recognition network
+        try:
+            default_params = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0',
+                              '--labels=labels.txt']
+            # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
+            net = jetson.inference.imageNet("", self._params)
+            # font = jetson.utils.cudaFont()
+        except Exception as e:
+            log_obj.export_message(e, Notice.EXCEPTION)
+            # Check file exists or not
+            if check_file_available(self.model_dir):
+                log_obj.export_message("CANNOT LOAD MODEL", Notice.EXCEPTION)
+                return Status.FAILED
+            else:
+                log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
+                return Status.NO_FILE
+        else:
+            self.__network = net
+            # self.font = font
+            log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
+            return Status.FINISHED
+
+    def get_network(self):
+        return self.__network
+
+    def kill(self):
+        # TODO:
+        # release memory when change model
+        pass
+
+
+class ModelB:
+    def __init__(self):
+        pass
+
+
+class Camera:
+    def __init__(self, camera_id=1):
+        """
+        camera_id: 1: Apple (Basler pulse), 2: Human (regular camera)
+        """
+        self.camera_id = camera_id
+        self.camera = None
+        self.converter = None
+        self.cam_on_off = Status.OFF
+
+    def load_camera(self):
+        if self.camera_id == 1:
+            camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
+            camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+            converter = pylon.ImageFormatConverter()
+            converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+            converter.OutputPixelFormat = pylon.PixelType_RGB8packed
+            self.camera = camera
+            self.converter = converter
+            self.cam_on_off = Status.ON
+        else:
+            try:
+                import cv2
+                cam = cv2.VideoCapture(0)
+                cam.set(cv2.CAP_PROP_FRAME_WIDTH, HEIGHT)
+                cam.set(cv2.CAP_PROP_FRAME_HEIGHT, WIDTH)
+
+                r, frame = cam.read()
+                if not r:
+                    print("failed to grab frame")
+                else:
+                    cv2.imshow("test", frame)
+
+                cam.release()
+            except Exception as e:
+                print("CAMERA cannot work successfully")
+                print(e)
+                pass
+
+    def get_image(self):
+        try:
+            if self.camera.IsGrabbing() and self.cam_on_off:
+                grabResult = self.camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+                if grabResult.GrabSucceeded():
+                    image = self.converter.Convert(grabResult)
+                    img = image.GetArray()
+                    return img
+            else:
+                log_obj.export_message("Camera was closed", Notice.WARNING)
+                return -1
+        except Exception as e:
+            log_obj.export_message(e, Notice.EXCEPTION)
+            log_obj.export_message("Cannot open camera", Notice.EXCEPTION)
+            return -1
+
 
 class Service:
     def __init__(self):
-        # Get model name from args
-        # ['predict.py', '--model=models/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
+        # Initialize model
         self.model_name = "resnet18.onnx"
-        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
+        self.__status_load_model = self.__load_model()
+        self.font = jetson.utils.cudaFont()
+        self.network = None
 
-        # for (i, param) in enumerate(self._params):
-        #    if "--model" in param:
-        #        self.model_name = self._params[i].split(MODEL_ARG + ROOT_MODEL)[-1]  # --model=models/
-        #        break
-        # del sys.argv[i]
+        # Camera control
+        self.camera = Camera()
 
-        self.__load_model()
         self.model_name_change = None  # model receive from PLC
 
         self.url = None  # handle url to download
-        self.download_thread = None  # thread to handle the download: Value=None or Thread
+        self.__download_model_result = Status.FAILED
 
-    def load_img(self):
-        """Read img from camera"""
-        try:
-            cam = cv2.VideoCapture(0)
-
-            cam.set(cv2.CAP_PROP_FRAME_WIDTH, HEIGHT)
-            cam.set(cv2.CAP_PROP_FRAME_HEIGHT, WIDTH)
-
-            r, frame = cam.read()
-            if not r:
-                print("failed to grab frame")
-
-            cv2.imshow("test", frame)
-
-            cam.release()
-        except Exception as e:
-            print("CAMERA cannot work successfully")
-            print(e)
+    def __load_model(self, model_name=None, model_id=1):
+        """
+        model_id : 1: ModelA, 2: modelB
+        """
+        status = Status.FINISHED
+        if model_name is None:
+            model_name = self.model_name
+        if model_id == 1:
+            model = ModelA(model_name)
+            status = model.load_model()
+            if status == Status.FINISHED:
+                self.network = model.get_network()
+        else:
             pass
 
-    def __load_model(self):
-        # load the recognition network
-        try:
-            t = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt']
-            # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
-            net = jetson.inference.imageNet("", self._params + [MODEL_ARG + ROOT_MODEL + self.model_name])
-            font = jetson.utils.cudaFont()
-        except Exception as e:
-            print(e)
-            return status.FAILED
-        else:
-            self.net = net
-            self.font = font
-            return status.FINISHED
-    
-    def check_model_changed_successful(self):
-        if self.model_name_change != self.model_name:
-            # Check file available?
-            check_file_availble("")
-            return status.FAILED
-        else: 
-            return status.FINISHED
+        return status
 
-    def classification(self, path_img='data/defective/23945062_20211015_133117_956.tiff'):
+    def get_model_changed_status(self):
+        return self.__status_load_model
+
+    def classification(self):
         """Classification image: OK or DEFECTIVE
-        path_img: string path
         """
+        # example_photo = 'data/defective/23945062_20211015_133117_956.tiff'
+        # I = cv2.imread(example_photo)  # load file by opencv
 
-        # Load Image
-        # # by Jetson utils
-        # img = jetson.utils.loadImage()
+        if self.network is None:    # No model is loaded
+            return ErrorCode.NO_MODEL
 
-        # by opencv
-        # img = cv2.imread(path_img)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # img = jetson.utils.cudaFromNumpy(img)  # convert numpy to Jetson type
-
-        """new preprocessing"""
-        I = cv2.imread(path_img)  # load file by opencv
+        I = self.camera.get_image()
+        if I == -1:
+            return Status.FAILED
+        # Preprocessing
         c = apple_detect(I)
         if (c.size != 0):
-            c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB) #convert to RGB order
-            img = jetson.utils.cudaFromNumpy(c) #convert image from numpy
+            c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
+            img = jetson.utils.cudaFromNumpy(c)  # convert image from numpy
         else:
-            print('Apple is not detected!')
-            return status.FAILED
-        
+            log_obj.export_message("Apple is not detected!", Notice.WARNING)
+            return ErrorCode.NO_PRODUCT
         # finish preprocessing
 
         # classify the image
-        class_id, confidence = self.net.Classify(img)
+        class_id, confidence = self.network.Classify(img)  # class_id=0 or 1
         # find the object description
-        class_desc = self.net.GetClassDesc(class_id)
-        # overlay the result on the image
-        self.font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5,
-                              self.font.White, self.font.Gray40)
+        class_desc = self.network.GetClassDesc(class_id)
+        # # overlay the result on the image to visualize
+        # self.font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5,
+        #                       self.font.White, self.font.Gray40)
         # Save output image
-        print('Network name: ' + self.net.GetNetworkName())
-        print('Network speed: ' + str(self.net.GetNetworkFPS()))
-        print("class_id+1", class_id)
-        self.net.PrintProfilerTimes()
-        return class_id+1
+        print('Network name: ' + self.network.GetNetworkName())
+        print('Network speed: ' + str(self.network.GetNetworkFPS()))
+        print("class_id", class_id)
+        # self.network.PrintProfilerTimes()
+        return Status.DEFECTIVE if class_id == 0 else Status.GOOD
 
-    def __download_model(self, url):
+    def __download_model(self):
         import wget
         try:
-            wget.download(url, out=ROOT_MODEL, bar=False)  # self.download_thread = Thread()
+            wget.download(self.url, out=ROOT_MODEL, bar=False)
+            self.__download_model_result = Status.FINISHED
         except Exception as e:
-            print("Download was failed")
-            print(e)
-            self.download_thread = None  # Failed
-
-    def check_download_status(self):
-        try:
-            if self.download_thread is None:  # no thread
-                return status.FAILED
-            elif self.download_thread.is_alive():  # downloading
-                return status.PROCESSING
-            else:
-                self.download_thread = None  # reset WITH ONE TIME CHECK STATUS SUCCESSFULLY
-                return status.FINISHED
-        except Exception as e:
-            print(e)
+            log_obj.export_message("Download was failed", Notice.WARNING)
+            log_obj.export_message(e, Notice.WARNING)
+            self.__download_model_result = Status.FAILED  # Failed by url=None or incorrect url
 
     def set_download_url(self, url):
         self.url = url
@@ -150,24 +202,20 @@ class Service:
         """""Download model by URL
         Only 1 model can be downloaded at a time
         """""
-        check_status = self.check_download_status()
-        if self.check_download_status() != status.PROCESSING:  # Free thread to download
-            # Create New Thread
-            self.download_thread = threading.Thread(target=self.__download_model, args=(self.url,))
-            self.download_thread.start()
-        else:  # still download
-            return -1  # RETURN Error when request many time to download model
+        self.__download_model()
+
+    def get_download_result(self):
+        return self.__download_model_result
 
     def set_model_name(self, model_name: str):
         self.model_name_change = model_name
 
     def change_model(self):
-        # Check model is available on local
-        import os
-        if self.model_name_change is not None and os.path.isfile(ROOT_MODEL + self.model_name_change):  # model exists
-            self.model_name = self.model_name_change
-            self.model_name_change = None  # reset model_name_rev
+        if self.model_name_change is not None and self.model_name != self.model_name_change:
             # load new model
-            error = self.__load_model()
+            self.__status_load_model = self.__load_model(self.model_name_change)
+            if self.__status_load_model == Status.FINISHED:
+                self.model_name = self.model_name_change
+                # self.model_name_change = None  # reset model_name_rev
         else:
-            return -1  # ERROR cannot change name of model
+            log_obj.export_message("Cannot do change name of model", Notice.ERROR)
