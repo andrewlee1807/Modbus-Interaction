@@ -1,5 +1,5 @@
-# import jetson.inference
-# import jetson.utils
+import jetson.inference
+import jetson.utils
 import threading
 from officialCodeCrop import *
 from utils import *
@@ -51,6 +51,9 @@ class ModelA:
         # release memory when change model
         pass
 
+    def __del__(self):
+        del self.__network
+
 
 class ModelB:
     def __init__(self):
@@ -68,33 +71,31 @@ class Camera:
         self.cam_on_off = Status.OFF
 
     def load_camera(self):
-        if self.camera_id == 1:
-            camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-            camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-            converter = pylon.ImageFormatConverter()
-            converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
-            converter.OutputPixelFormat = pylon.PixelType_RGB8packed
-            self.camera = camera
-            self.converter = converter
-            self.cam_on_off = Status.ON
-        else:
-            try:
-                import cv2
+        try:
+            if self.camera_id == 1:
+                camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
+                camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+                converter = pylon.ImageFormatConverter()
+                converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+                converter.OutputPixelFormat = pylon.PixelType_RGB8packed
+                self.camera = camera
+                self.converter = converter
+                self.cam_on_off = Status.ON
+            else:
                 cam = cv2.VideoCapture(0)
                 cam.set(cv2.CAP_PROP_FRAME_WIDTH, HEIGHT)
                 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, WIDTH)
 
                 r, frame = cam.read()
                 if not r:
-                    print("failed to grab frame")
+                    log_obj.export_message("CANNOT CAPTURE THE IMAGE BY OPENCV", Notice.CRITICAL)
                 else:
-                    cv2.imshow("test", frame)
+                    cv2.imshow("frame", frame)
 
                 cam.release()
-            except Exception as e:
-                print("CAMERA cannot work successfully")
-                print(e)
-                pass
+        except Exception as e:
+            log_obj.export_message("CAMERA cannot work successfully", Notice.CRITICAL)
+            log_obj.export_message(e, Notice.CRITICAL)
 
     def get_image(self):
         try:
@@ -111,6 +112,10 @@ class Camera:
             log_obj.export_message(e, Notice.EXCEPTION)
             log_obj.export_message("Cannot open camera", Notice.EXCEPTION)
             return -1
+
+    def __del__(self):
+        del self.camera
+        del self.converter
 
 
 class Service:
@@ -139,7 +144,7 @@ class Service:
         if model_id == 1:
             model = ModelA(model_name)
             status = model.load_model()
-            if status == Status.FINISHED:
+            if status == Status.FINISHED:  # keep the previous model to prevent the system crash
                 self.network = model.get_network()
         else:
             pass
@@ -155,7 +160,7 @@ class Service:
         # example_photo = 'data/defective/23945062_20211015_133117_956.tiff'
         # I = cv2.imread(example_photo)  # load file by opencv
 
-        if self.network is None:    # No model is loaded
+        if self.network is None:  # No model is loaded
             return ErrorCode.NO_MODEL
 
         I = self.camera.get_image()
