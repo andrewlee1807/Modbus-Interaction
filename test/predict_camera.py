@@ -68,7 +68,7 @@ print(sys.argv)
 # Old dataset
 
 #  New Dataset
-root_dir = 'data/'
+root_dir = '../data/'
 input_dir = ['defective', 'ok']
 output_dir = ['defective_out', 'ok_out']
 
@@ -80,57 +80,55 @@ f = open("output_result.txt", "a")
 
 total_time_of_whole_process = 0
 
-for i in range(len(input_dir)):
-	print(input_dir[i] ,'-----', output_dir[i])
 
-	input_imgs_dir = root_dir + input_dir[i]
-	output_imgs_dir = root_dir + output_dir[i]
-	for input_name in os.listdir(input_imgs_dir):
-                start_an_img_work = time.time()
-		print(input_imgs_dir+"/"+input_name)
-		net_input_dir = input_imgs_dir+"/"+input_name
-		output_name = 'out_' + input_name
-		print(output_imgs_dir +"/" + output_name)
-		net_output_dir = output_imgs_dir +"/" + output_name
+from pypylon import pylon
+import platform
+import time
+t = time.time()
+camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
+camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+converter = pylon.ImageFormatConverter()
+converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+converter.OutputPixelFormat = pylon.PixelType_RGB8packed
+cam_on_off = True
+file_num = 0
+while camera.IsGrabbing() and cam_on_off:
+    start_an_img_work = time.time()
+    grabResult = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+    img_tiff = None
+    if grabResult.GrabSucceeded():
+        image = converter.Convert(grabResult)
+        img = image.GetArray()
+        
+        I = img
+        class_id, confidence = classify(numpy_img=I, jeston_model=net)
 
-		
-		I = cv2.imread(net_input_dir)
-		class_id, confidence = classify(numpy_img=I, jeston_model=net)
-		
-		if (i == 0 and class_id == 0):
-			true_negative = true_negative + 1
-		if (i == 0 and class_id == 1):
-			false_positive = false_positive + 1
-		if (i == 1 and class_id == 1):
-			true_positive = true_positive + 1
-		if (i == 1 and class_id == 0):
-			false_negative = false_negative + 1
-		
-		# find the object description
-		t = time.time()
-		class_desc = net.GetClassDesc(class_id)
-		print("Time to find the object description: ", time.time()- t)
+        # find the object description
+        t = time.time()
+        class_desc = net.GetClassDesc(class_id)
+        print("Time to find the object description: ", time.time()- t)
 
-		string_write = str (i) + "  " +str(class_id) +"  " + class_desc+ "  " +str("{:.2f}".format(confidence * 100)) +" " + net_input_dir + "  "+net_output_dir
-		f.write(string_write + "\r\n")	
+        string_write = str(class_id) +"  " + class_desc+ "  " +str("{:.2f}".format(confidence * 100))
+        # f.write(string_write + "\r\n")	
+        print(string_write)
 
-		# overlay the result on the image
-		t= time.time()	
-		# font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5, font.White, font.Gray40)
-		print("Time to overlay the result on the image: ", time.time()- t)
-		# Save output image
-		# t = time.time()
-		# jetson.utils.saveImage(net_output_dir,img)
-		# print("Time to Save output image: ", time.time()- t)    
+        # overlay the result on the image
+        t= time.time()	
+        # font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5, font.White, font.Gray40)
+        print("Time to overlay the result on the image: ", time.time()- t)
+        # Save output image
+        # t = time.time()
+        # jetson.utils.saveImage(net_output_dir,img)
+        # print("Time to Save output image: ", time.time()- t)    
 
-		# print out performance info
-		net.PrintProfilerTimes()
-		total_time_of_a_process = time.time()-start_an_img_work
-		total_time_of_whole_process += total_time_of_a_process
-		print("Total time to process an image: ", total_time_of_a_process)
-		print('Network name: '+ net.GetNetworkName())
-		print('Network speed: '+ str(net.GetNetworkFPS()))
-		print("\n\n")
+        # print out performance info
+        net.PrintProfilerTimes()
+        total_time_of_a_process = time.time()-start_an_img_work
+        total_time_of_whole_process += total_time_of_a_process
+        print("Total time to process an image: ", total_time_of_a_process)
+        print('Network name: '+ net.GetNetworkName())
+        print('Network speed: '+ str(net.GetNetworkFPS()))
+        print("\n\n")
 f.close()
 print("       ----------------------------------------        ")
 print("                    FINAL RESULTS")
