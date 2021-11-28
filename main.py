@@ -30,7 +30,9 @@ class ServerSocket():
         self.get_result_change_model = (self.myConfig.MODBUS_ADDRESS_MODEL_CHANGE_RESULT) * 2
         # Model download completion result value
         self.model_download_result = (self.myConfig.MODBUS_ADDRESS_MODEL_DOWNLOAD_RESULT) * 2
+        # Collector or Discriminator Transition
         self.coll_disc_trans = (self.myConfig.MODBUS_ADDRESS_COLL_DISC) * 2
+        # Collector or Discriminator Transition result
         self.coll_disc_result = (self.myConfig.MODBUS_ADDRESS_COLL_DISC_RESULT) * 2
         # change model
         self.start_model_change = (self.myConfig.MODBUS_ADDRESS_MODEL_CHANGE) * 2
@@ -52,6 +54,7 @@ class ServerSocket():
         self.thread_change_model = None  # Change new model
         self.thread_inference = None  # includes: Action(start, stop,..)
         self.thread_downloading = None  # Thread to download model
+        self.thread_camera_action = None  # Thread to control camera
 
     def updateClient(self, addr, isConnect=False):
         """Connection of client's status"""
@@ -144,7 +147,8 @@ class ServerSocket():
                 elif startAddress in [self.start_model_download]:
                     print("Start to download model from url")
                     value_int = int.from_bytes(data["VALUE"], byteorder='big')
-                    if value_int == Status.ON and self.thread_downloading != Status.PROCESSING:  # Free thread to download
+                    check_thread = check_thread_alive(self.thread_downloading)
+                    if value_int == Status.ON and check_thread != Status.PROCESSING:  # Free thread to download
                         self.thread_downloading = threading.Thread(target=self.service.download_model)
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
@@ -155,6 +159,7 @@ class ServerSocket():
                     if check_thread == Status.PROCESSING:
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
+                        self.thread_downloading = None  # reset the thread
                         result = self.service.get_download_result()
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
                     return packet
@@ -162,8 +167,11 @@ class ServerSocket():
                 # Start to change new model
                 elif startAddress in [self.start_model_change]:
                     print("Start to change model")
-                    self.thread_change_model = threading.Thread(target=self.service.change_model)
-                    self.thread_change_model.start()
+                    value_int = int.from_bytes(data["VALUE"], byteorder='big')
+                    check_thread = check_thread_alive(self.thread_change_model)
+                    if value_int == Status.ON and check_thread != Status.PROCESSING:
+                        self.thread_change_model = threading.Thread(target=self.service.change_model)
+                        self.thread_change_model.start()
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Get result's Classification => MBAP-FC-COUNT-VALUE
@@ -182,21 +190,44 @@ class ServerSocket():
                                      two_bytes(self.last_detection_result)
                     return packet
 
-                # Get the result's change new model => MBAP-FC-COUNT-VALUE
+                # Get the result's changing new model => MBAP-FC-COUNT-VALUE
                 elif startAddress in [self.get_result_change_model]:
-                    print("get_result_change_model")
+                    print("Get the result's changing model")
                     check_thread = check_thread_alive(self.thread_change_model)
                     if check_thread == Status.PROCESSING:
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
+                        self.thread_change_model = None  # reset thread
                         result = self.service.get_download_result()
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
                     return packet
 
                 # Start to change collector or detector
-                # TODO:
-                elif startAddress in [self.coll_disc_trans]:
-                    return -1
+                elif startAddress in [self.coll_disc_trans]:  # Control camera: open or close
+                    print("Control the camera")
+                    value_int = int.from_bytes(data["VALUE"], byteorder='big')
+                    check_thread = check_thread_alive(self.thread_camera_action)
+                    if check_thread != Status.PROCESSING:
+                        if value_int == Status.DETECTOR:  # open camera
+                            self.thread_camera_action = threading.Thread(target=self.service.open_camera)
+                            self.thread_camera_action.start()
+                        else:  # close camera
+                            self.thread_camera_action = threading.Thread(target=self.service.close_camera)
+                            self.thread_camera_action.start()
+
+                    return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+
+                # Get the result's changing collector or detector => MBAP-FC-COUNT-VALUE
+                elif startAddress in [self.coll_disc_result]:
+                    print("Get the result's changing collector or detector")
+                    check_thread = check_thread_alive(self.thread_camera_action)
+                    if check_thread == Status.PROCESSING:
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
+                    else:
+                        self.thread_camera_action = None  # reset the thread
+                        result = self.service.get_camera_status()
+                        packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
+                    return packet
                 else:
                     log_obj.export_message("ADDRESS IS NOT DEFINED BEFORE", Notice.EXCEPTION)
             else:

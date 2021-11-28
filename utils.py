@@ -14,6 +14,8 @@ class Status:
     OFF = 0
     ON = 1
     NO_FILE = 4  # no file available
+    COLLECTOR = 1  # close camera
+    DETECTOR = 2  # open camera
 
 
 class Notice:
@@ -67,7 +69,7 @@ def check_thread_alive(thread):
         elif thread.is_alive():  # alive
             return Status.PROCESSING
         else:
-            thread = None  # reset WITH ONE TIME CHECK STATUS SUCCESSFULLY
+            # thread = None  # reset WITH ONE TIME CHECK STATUS SUCCESSFULLY
             return Status.FINISHED
     except Exception as e:
         print(e)

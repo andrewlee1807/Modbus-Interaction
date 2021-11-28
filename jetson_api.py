@@ -66,21 +66,21 @@ class Camera:
         camera_id: 1: Apple (Basler pulse), 2: Human (regular camera)
         """
         self.camera_id = camera_id
-        self.camera = None
+        self.device = None
         self.converter = None
-        self.cam_on_off = Status.OFF
 
     def load_camera(self):
         try:
             if self.camera_id == 1:
-                camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-                camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-                converter = pylon.ImageFormatConverter()
-                converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
-                converter.OutputPixelFormat = pylon.PixelType_RGB8packed
-                self.camera = camera
-                self.converter = converter
-                self.cam_on_off = Status.ON
+                if self.device is None:
+                    camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
+                    camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+                    converter = pylon.ImageFormatConverter()
+                    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+                    converter.OutputPixelFormat = pylon.PixelType_RGB8packed
+                    self.device = camera
+                    self.converter = converter
+                return Status.FINISHED
             else:
                 cam = cv2.VideoCapture(0)
                 cam.set(cv2.CAP_PROP_FRAME_WIDTH, HEIGHT)
@@ -96,11 +96,12 @@ class Camera:
         except Exception as e:
             log_obj.export_message("CAMERA cannot work successfully", Notice.CRITICAL)
             log_obj.export_message(e, Notice.CRITICAL)
+            return Status.FAILED
 
     def get_image(self):
         try:
-            if self.camera.IsGrabbing() and self.cam_on_off:
-                grabResult = self.camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+            if self.device.IsGrabbing():
+                grabResult = self.device.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
                 if grabResult.GrabSucceeded():
                     image = self.converter.Convert(grabResult)
                     img = image.GetArray()
@@ -113,8 +114,18 @@ class Camera:
             log_obj.export_message("Cannot open camera", Notice.EXCEPTION)
             return -1
 
+    def inject_camera(self):
+        try:
+            if self.device is not None:
+                self.device.StopGrabbing()
+            return Status.FINISHED
+        except Exception as e:
+            log_obj.export_export("CANNOT INJECT THE CAMERA", Notice.ERROR)
+            log_obj.export_export(e, Notice.ERROR)
+            return Status.FAILED
+
     def __del__(self):
-        del self.camera
+        del self.device
         del self.converter
 
 
@@ -127,7 +138,9 @@ class Service:
         self.network = None
 
         # Camera control
-        self.camera = Camera()
+        self.camera = Camera()  # default is camera_id: 1: Apple (Basler pulse)
+        self.camera_status = Status.FAILED  # check camera open/ close/ processing...
+        self.open_camera()
 
         self.model_name_change = None  # model receive from PLC
 
@@ -154,6 +167,17 @@ class Service:
     def get_model_changed_status(self):
         return self.__status_load_model
 
+    def open_camera(self):
+        self.camera_status = Status.PROCESSING
+        self.camera_status = self.camera.load_camera()
+
+    def close_camera(self):
+        self.camera_status = Status.PROCESSING
+        self.camera_status = self.camera.inject_camera()
+
+    def get_camera_status(self):
+        return self.camera_status
+
     def classification(self):
         """Classification image: OK or DEFECTIVE
         """
@@ -162,6 +186,9 @@ class Service:
 
         if self.network is None:  # No model is loaded
             return ErrorCode.NO_MODEL
+        if self.camera_status != Status.FINISHED:
+            log_obj.export_message("NO CAMERA IS READY", Notice.ERROR)
+            return ErrorCode.NO_WORK
 
         I = self.camera.get_image()
         if I == -1:
