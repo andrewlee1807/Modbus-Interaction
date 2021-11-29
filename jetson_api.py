@@ -22,11 +22,13 @@ class ModelA:
 
     def load_model(self):
         # load the recognition network
+        net = None
         try:
             default_params = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0',
                               '--labels=labels.txt']
             # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
             net = jetson.inference.imageNet("", self._params)
+            self.__network = net
             # font = jetson.utils.cudaFont()
         except Exception as e:
             log_obj.export_message(e, Notice.EXCEPTION)
@@ -38,12 +40,12 @@ class ModelA:
                 log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
                 return Status.NO_FILE
         else:
-            self.__network = net
             # self.font = font
             log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
             return Status.FINISHED
 
     def get_network(self):
+        print("Net internal:", self.__network)
         return self.__network
 
     def kill(self):
@@ -80,6 +82,7 @@ class Camera:
                     converter.OutputPixelFormat = pylon.PixelType_RGB8packed
                     self.device = camera
                     self.converter = converter
+                    log_obj.export_message("Camera opened", Notice.INFO)                    
                 return Status.FINISHED
             else:
                 cam = cv2.VideoCapture(0)
@@ -118,6 +121,7 @@ class Camera:
         try:
             if self.device is not None:
                 self.device.StopGrabbing()
+                log_obj.export_message("Camera was closed", Notice.INFO)
             return Status.FINISHED
         except Exception as e:
             log_obj.export_export("CANNOT INJECT THE CAMERA", Notice.ERROR)
@@ -132,10 +136,10 @@ class Camera:
 class Service:
     def __init__(self):
         # Initialize model
+        self.network = None
         self.model_name = "resnet18.onnx"
         self.__status_load_model = self.__load_model()
         self.font = jetson.utils.cudaFont()
-        self.network = None
 
         # Camera control
         self.camera = Camera()  # default is camera_id: 1: Apple (Basler pulse)
@@ -185,15 +189,16 @@ class Service:
         # I = cv2.imread(example_photo)  # load file by opencv
 
         if self.network is None:  # No model is loaded
+            log_obj.export_message("NO MODEL", Notice.ERROR)
             return ErrorCode.NO_MODEL
         if self.camera_status != Status.FINISHED:
             log_obj.export_message("NO CAMERA IS READY", Notice.ERROR)
             return ErrorCode.NO_WORK
 
         I = self.camera.get_image()
-        if I == -1:
+        
+        if type(I) == int:
             return Status.FAILED
-        # Preprocessing
         c = apple_detect(I)
         if (c.size != 0):
             c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
@@ -211,8 +216,8 @@ class Service:
         # self.font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5,
         #                       self.font.White, self.font.Gray40)
         # Save output image
-        print('Network name: ' + self.network.GetNetworkName())
-        print('Network speed: ' + str(self.network.GetNetworkFPS()))
+        #print('Network name: ' + self.network.GetNetworkName())
+        #print('Network speed: ' + str(self.network.GetNetworkFPS()))
         print("class_id", class_id)
         # self.network.PrintProfilerTimes()
         return Status.DEFECTIVE if class_id == 0 else Status.GOOD
@@ -220,7 +225,9 @@ class Service:
     def __download_model(self):
         import wget
         try:
+            log_obj.export_message("Start download", Notice.INFO)
             wget.download(self.url, out=ROOT_MODEL, bar=False)
+            log_obj.export_message("Done download", Notice.INFO)
             self.__download_model_result = Status.FINISHED
         except Exception as e:
             log_obj.export_message("Download was failed", Notice.WARNING)

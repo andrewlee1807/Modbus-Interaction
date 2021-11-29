@@ -49,7 +49,7 @@ class ServerSocket():
         self.thread_connections = []
 
         # inference from jetson api
-        self.last_detection_result = ErrorCode.NO_MODEL
+        self.last_detection_result = ErrorCode.NO_WORK
 
         self.thread_change_model = None  # Change new model
         self.thread_inference = None  # includes: Action(start, stop,..)
@@ -111,8 +111,9 @@ class ServerSocket():
         return data["MBAP"] + bytes([data["FC"] + 0x80]) + two_bytes(error_type)
 
     def inference(self):
+        print("start thread to do inference")
         self.last_detection_result = self.service.classification()
-        # self.last_detection_result = status.GOOD
+        #self.last_detection_result = status.GOOD
 
     def do_request(self, data):  # control the jetson's jobs
         if type(data) == dict:
@@ -137,11 +138,13 @@ class ServerSocket():
                     action_value = int.from_bytes(data["VALUE"], byteorder='big') * 2
                     print("ACTION CODE: ", action_value)
                     if action_value in [AI_ACTION_CODE.START, AI_ACTION_CODE.RESUME]:  # inference
-                        print("Do inference..")
                         # create thread to execute
                         if self.thread_inference is None:
+                            print("Do inference..")
                             self.thread_inference = threading.Thread(target=self.inference())
                             self.thread_inference.start()
+                        #pack = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+                        #print(pack)
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Start to download model from url => MBAP-FC-ADDRESS-VALUE (same with do_request)
@@ -149,8 +152,10 @@ class ServerSocket():
                     print("Start to download model from url")
                     value_int = int.from_bytes(data["VALUE"], byteorder='big')
                     check_thread = check_thread_alive(self.thread_downloading)
+                    print(check_thread)
                     if value_int == Status.ON and check_thread != Status.PROCESSING:  # Free thread to download
                         self.thread_downloading = threading.Thread(target=self.service.download_model)
+                        self.thread_downloading.start()
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Get the result's download url => MBAP-FC-COUNT-VALUE
@@ -182,13 +187,19 @@ class ServerSocket():
                     if check_thread == Status.PROCESSING:
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
-                        if self.last_detection_result == ErrorCode.NO_MODEL:
-                            packet = self.__create_error_message(data, ErrorCode.NO_MODEL)
-                        elif self.last_detection_result == ErrorCode.NO_PRODUCT:
-                            packet = self.__create_error_message(data, ErrorCode.NO_PRODUCT)
+                        self.thread_inference = None # reset the thread
+                        #print("self.last_detection_result: ", self.last_detection_result)
+                        if type(self.last_detection_result) == bytes:
+                            if self.last_detection_result == ErrorCode.NO_MODEL:
+                                print("Error no model")
+                                packet = self.__create_error_message(data, ErrorCode.NO_MODEL)
+                            elif self.last_detection_result == ErrorCode.NO_PRODUCT:
+                                print("Error no product")
+                                packet = self.__create_error_message(data, ErrorCode.NO_PRODUCT)
                         else:
                             packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + \
                                      two_bytes(self.last_detection_result)
+                    #print("classify:", packet)
                     return packet
 
                 # Get the result's changing new model => MBAP-FC-COUNT-VALUE
@@ -200,7 +211,7 @@ class ServerSocket():
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
                         self.thread_change_model = None  # reset thread
-                        result = self.service.get_download_result()
+                        result = self.service.get_model_changed_status()
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(result)
                     return packet
 
@@ -339,7 +350,9 @@ class ServerSocket():
                         print(data)
                         # Do the request
                         packet_response = self.do_request(data)
-                        if packet_response == -1:
+                        #print("packet_response:", packet_response)
+                        #print(type(packet_response))
+                        if type(packet_response) == int:
                             packet_response = packet_exception
                     except Exception as e:
                         log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
