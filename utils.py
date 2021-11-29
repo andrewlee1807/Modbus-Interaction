@@ -81,7 +81,7 @@ def check_file_available(path):
 
 class Logger:
     def __init__(self):
-        file_name = time.strftime("%Y%m%d%H%M%S") + '.log'
+        file_name = 'logs/' + time.strftime("%Y%m%d%H%M%S") + '.log'
         formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
                                       datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
         logging.basicConfig(filename=file_name,
