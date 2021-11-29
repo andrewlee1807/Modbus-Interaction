@@ -116,4 +116,4 @@ class Logger:
             print(msg)
 
 
-log_obj = Logger().log_obj
+log_obj = Logger()
