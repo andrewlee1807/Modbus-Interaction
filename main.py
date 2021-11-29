@@ -184,6 +184,7 @@ class ServerSocket():
                 elif startAddress in [self.get_result_classification]:
                     print("Get result Classification")
                     check_thread = check_thread_alive(self.thread_inference)
+                    print(check_thread)
                     if check_thread == Status.PROCESSING:
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:

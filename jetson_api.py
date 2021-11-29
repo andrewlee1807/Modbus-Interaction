@@ -258,4 +258,4 @@ class Service:
                 self.model_name = self.model_name_change
                 # self.model_name_change = None  # reset model_name_rev
         else:
-            log_obj.export_message("Cannot do change name of model", Notice.ERROR)
+            log_obj.export_message("Cannot do change model, plz check name of model was same with old model", Notice.ERROR)
