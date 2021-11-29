@@ -135,6 +135,7 @@ class ServerSocket():
                 # ACTION CODE => MBAP + FC + ADDRESS + REGISTERS (same with request)
                 elif startAddress == self.action_code:
                     action_value = int.from_bytes(data["VALUE"], byteorder='big') * 2
+                    print("ACTION CODE: ", action_value)
                     if action_value in [AI_ACTION_CODE.START, AI_ACTION_CODE.RESUME]:  # inference
                         print("Do inference..")
                         # create thread to execute
@@ -195,6 +196,7 @@ class ServerSocket():
                     print("Get the result's changing model")
                     check_thread = check_thread_alive(self.thread_change_model)
                     if check_thread == Status.PROCESSING:
+                        print("Model is still changing")
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
                         self.thread_change_model = None  # reset thread

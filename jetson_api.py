@@ -245,6 +245,7 @@ class Service:
     def change_model(self):
         if self.model_name_change is not None and self.model_name != self.model_name_change:
             # load new model
+            self.__status_load_model = Status.PROCESSING
             self.__status_load_model = self.__load_model(self.model_name_change)
             if self.__status_load_model == Status.FINISHED:
                 self.model_name = self.model_name_change
