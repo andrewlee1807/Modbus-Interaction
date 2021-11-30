@@ -175,7 +175,7 @@ class Service:
         from camera_lib import MainWindowClass
         import sys
         app = QApplication(sys.argv)
-        mainwindow = MainWindowClass()
+        mainwindow = MainWindowClass(self.camera)
         mainwindow.show()
 
     def get_model_changed_status(self):
