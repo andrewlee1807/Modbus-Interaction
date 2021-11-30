@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from PIL import Image
+#from PIL import Image
 
 
 def fillHoles(img):
@@ -72,9 +72,13 @@ def apple_segment(I):
     return out, BB
 
 def apple_detect(I):
+    #print(I)
+    #print(I.shape)
     h_old, w_old, c =  I.shape
-    ratio = round(np.log2(max(h_old, w_old) / 512))
+    ratio = int(round(np.log2(max(h_old, w_old) / 512)))
     GAD1 = I.copy()
+    #print(type(ratio))
+    #print(ratio)
     for i in range (ratio):
         GAD1 = cv2.pyrDown(GAD1)
     GAD = GAD1.copy()
@@ -131,17 +135,17 @@ def apple_detect(I):
     else:
         return None
 
-if __name__ == '__main__':
-    #R, G, B order
-    I = Image.open('sample4.tiff')
-    I_numpy = np.array(I)
-    c = apple_detect(I_numpy)
-
-    if c is not None:
-        pil_image = Image.fromarray(c)
-        pil_image.show()
-    else:
-        print('Apple is not detected!')
+#if __name__ == '__main__':
+#    #R, G, B order
+#    I = Image.open('sample4.tiff')
+#    I_numpy = np.array(I)
+#    c = apple_detect(I_numpy)
+#
+#    if c is not None:
+#        pil_image = Image.fromarray(c)
+#        pil_image.show()
+#    else:
+#        print('Apple is not detected!')
 
     # If this code can detect an apple, return an RGB image (numpy array). Please normalize this image into [-1, 1]
     #     before feeding to the CNN model. (Ex: x /= 127.5; x -= 1)

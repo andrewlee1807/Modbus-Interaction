@@ -151,7 +151,9 @@ class Service:
         self.__download_model_result = Status.FAILED
 
         # real time camera showing...
-        self.__window_camera()
+        import threading
+        t = threading.Thread(target=self.__window_camera)
+        t.start()
 
     def __load_model(self, model_name=None, model_id=1):
         """
@@ -177,6 +179,9 @@ class Service:
         app = QApplication(sys.argv)
         mainwindow = MainWindowClass(self.camera)
         mainwindow.show()
+        
+        #app.exec_()
+        sys.exit(app.exec_())
 
     def get_model_changed_status(self):
         return self.__status_load_model

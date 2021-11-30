@@ -40,7 +40,7 @@ class CameraConnectorClass(QObject):
         # self.cam_on_off = True
         while True:
             self.img = camera.get_image()
-            if self.img == -1:
+            if type(self.img) == int:
                 break
             self.cam_data.emit(self.img)
 
@@ -86,6 +86,8 @@ class ImageViewer(QObject):
 
 class MainWindowClass(QMainWindow, mainwindowUiForm):
     def __init__(self, camera):
+        print("Initialize windows")
+        self.camera = camera
         QMainWindow.__init__(self)
         self.setupUi(self)
 
@@ -94,7 +96,7 @@ class MainWindowClass(QMainWindow, mainwindowUiForm):
         self.btnCapture.clicked.connect(self.cam_capture)
         self.mycam0 = ImageViewer(self.lb_imageViewer)
         self.camera_seacher = CameraConnectorClass(self)
-        self.camera = camera
+        
 
     def cam_capture(self):
         self.camera_seacher.cam_capture_switch()
@@ -108,6 +110,10 @@ class MainWindowClass(QMainWindow, mainwindowUiForm):
     def update_imageviewer(self, img):
         self.mycam0.display_img(img)
 
+# from jetson_api import Camera
+# camera = Camera()
+# camera.load_camera()
 # app = QApplication(sys.argv)
-# mainwindow = MainWindowClass()
+# mainwindow = MainWindowClass(camera)
 # mainwindow.show()
+# sys.exit(app.exec_())

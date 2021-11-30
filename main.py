@@ -108,7 +108,7 @@ class ServerSocket():
         return data, packet
 
     def __create_error_message(self, data, error_type):  # => MBAP-FC-VALUE
-        return data["MBAP"] + bytes([data["FC"] + 0x80]) + two_bytes(error_type)
+        return data["MBAP"] + bytes([data["FC"] + 0x80]) + error_type # error_type define by ErrorCode
 
     def inference(self):
         print("start thread to do inference")
@@ -184,8 +184,9 @@ class ServerSocket():
                 elif startAddress in [self.get_result_classification]:
                     print("Get result Classification")
                     check_thread = check_thread_alive(self.thread_inference)
-                    print(check_thread)
+                    print("check_thread", check_thread)
                     if check_thread == Status.PROCESSING:
+                        print("Still processing")
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
                         self.thread_inference = None # reset the thread
@@ -198,6 +199,7 @@ class ServerSocket():
                                 print("Error no product")
                                 packet = self.__create_error_message(data, ErrorCode.NO_PRODUCT)
                         else:
+                            print("Result of model:", self.last_detection_result)
                             packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + \
                                      two_bytes(self.last_detection_result)
                     #print("classify:", packet)
@@ -346,20 +348,20 @@ class ServerSocket():
                     print(i, end=" ")
                 print()
                 if msg:
-                    try:
-                        data, packet_exception = self.__extract(msg)
-                        print(data)
-                        # Do the request
-                        packet_response = self.do_request(data)
-                        #print("packet_response:", packet_response)
-                        #print(type(packet_response))
-                        if type(packet_response) == int:
-                            packet_response = packet_exception
-                    except Exception as e:
-                        log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
-                        log_obj.export_message(e, Notice.CRITICAL)
-                        packet_response = self.__create_error_message(data,
-                                                                      ErrorCode.NO_WORK)  # should be fixed value error
+                    #try:
+                    data, packet_exception = self.__extract(msg)
+                    print(data)
+                    # Do the request
+                    packet_response = self.do_request(data)
+                    #print("packet_response:", packet_response)
+                    #print(type(packet_response))
+                    if type(packet_response) == int:
+                        packet_response = packet_exception
+                    #except Exception as e:
+                        #log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
+                    #    log_obj.export_message(e, Notice.CRITICAL)
+                    #    packet_response = self.__create_error_message(data,
+                    #                                                  ErrorCode.NO_WORK)  # should be fixed value error
                     self.send(packet_response)
                 if not msg:
                     break

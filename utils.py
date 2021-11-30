@@ -28,9 +28,9 @@ class Notice:
 
 
 class ErrorCode:
-    NO_PRODUCT = 0x01
-    NO_MODEL = 0x02
-    NO_WORK = 0x03
+    NO_PRODUCT = b'0x01'
+    NO_MODEL = b'0x02'
+    NO_WORK = b'0x03'
 
 
 class AI_ACTION_CODE:
