@@ -1,6 +1,5 @@
 import jetson.inference
 import jetson.utils
-import threading
 from RGB_order_OfficialCodeCrop import *
 from utils import *
 from pypylon import pylon
@@ -82,7 +81,7 @@ class Camera:
                     converter.OutputPixelFormat = pylon.PixelType_RGB8packed
                     self.device = camera
                     self.converter = converter
-                    log_obj.export_message("Camera opened", Notice.INFO)                    
+                    log_obj.export_message("Camera opened", Notice.INFO)
                 return Status.FINISHED
             else:
                 cam = cv2.VideoCapture(0)
@@ -151,6 +150,9 @@ class Service:
         self.url = None  # handle url to download
         self.__download_model_result = Status.FAILED
 
+        # real time camera showing...
+        self.__window_camera()
+
     def __load_model(self, model_name=None, model_id=1):
         """
         model_id : 1: ModelA, 2: modelB
@@ -167,6 +169,14 @@ class Service:
             pass
 
         return status
+
+    def __window_camera(self):
+        from PyQt5.QtWidgets import QApplication
+        from camera_lib import MainWindowClass
+        import sys
+        app = QApplication(sys.argv)
+        mainwindow = MainWindowClass()
+        mainwindow.show()
 
     def get_model_changed_status(self):
         return self.__status_load_model
@@ -196,7 +206,7 @@ class Service:
             return ErrorCode.NO_WORK
 
         I = self.camera.get_image()
-        
+
         if type(I) == int:
             return Status.FAILED
         c = apple_detect(I)
@@ -216,8 +226,8 @@ class Service:
         # self.font.OverlayText(img, img.width, img.height, "{:05.2f}% {:s}".format(confidence * 100, class_desc), 5, 5,
         #                       self.font.White, self.font.Gray40)
         # Save output image
-        #print('Network name: ' + self.network.GetNetworkName())
-        #print('Network speed: ' + str(self.network.GetNetworkFPS()))
+        # print('Network name: ' + self.network.GetNetworkName())
+        # print('Network speed: ' + str(self.network.GetNetworkFPS()))
         print("class_id", class_id)
         # self.network.PrintProfilerTimes()
         return Status.DEFECTIVE if class_id == 0 else Status.GOOD
@@ -258,4 +268,5 @@ class Service:
                 self.model_name = self.model_name_change
                 # self.model_name_change = None  # reset model_name_rev
         else:
-            log_obj.export_message("Cannot do change model, plz check name of model was same with old model", Notice.ERROR)
+            log_obj.export_message("Cannot do change model, plz check name of model was same with old model",
+                                   Notice.ERROR)
