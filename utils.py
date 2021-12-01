@@ -105,14 +105,15 @@ class Logger:
         formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
                                       datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
 
-        # handler = logging.FileHandler(log_file)
-        # handler.setFormatter(formatter)
-        logging.basicConfig(filename=log_file,
-                            format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
-                            datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(formatter)
+        # logging.basicConfig(filename=log_file,
+        #                     format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
+        #                     datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
 
         logger = logging.getLogger(name)
         logger.setLevel(level)
+        logger.addHandler(handler)
 
 
         # console printer
