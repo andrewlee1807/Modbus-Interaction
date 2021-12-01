@@ -85,26 +85,27 @@ class Logger:
         timestamp = time.strftime("%Y%m%d%H%M%S")
         ERR_FILE = 'logs/' + 'errors_' + timestamp + '.log'
         LOG_FILE = 'logs/' + 'log_' + timestamp + '.log'
-        formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
-                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
-        logging.basicConfig(filename=LOG_FILE,
-                            format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
-                            datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
-        log_obj = logging.getLogger()
-        log_obj.setLevel(logging.DEBUG)
+        # formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
+        #                               datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
+        # logging.basicConfig(filename=LOG_FILE,
+        #                     format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
+        #                     datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
+        # log_obj = logging.getLogger()
+        # log_obj.setLevel(logging.DEBUG)
+        self.log_obj = self.__setup_logger(LOG_FILE, logging.INFO)
+        self.log_err = self.__setup_logger(ERR_FILE, logging.ERROR)
 
         log_obj.info("Logger object created successfully..")
-        self.log_obj = log_obj
-    
-    def __setup_logger(log_file, level=logging.INFO):
+
+    def __setup_logger(self, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
         formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
                                       datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
-        logging.basicConfig(filename=LOG_FILE,
+        logging.basicConfig(filename=log_file,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
         logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(level)
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
@@ -113,22 +114,26 @@ class Logger:
 
         return logger
 
-
     def export_message(self, msg, level=0, *args):
-        #cf = inspect.currentframe()
-        #print("DEBUG", f"{inspect.stack()[1][1]}:{cf.f_back.f_lineno}", *args)
+        cf = inspect.currentframe()
+        line = f"{inspect.stack()[1][1]}:{cf.f_back.f_lineno}"
+        print(line , *args)
         if level == Notice.INFO:
             self.log_obj.info(msg)
         elif level == Notice.WARNING:
             self.log_obj.warning(msg)
         elif level == Notice.DEBUG:
-            self.log_obj.debug(msg)
+            self.log_err.debug(line)
+            self.log_err.debug(msg)
         elif level == Notice.EXCEPTION:
-            self.log_obj.exception(msg)
+            self.log_err.exception(line)
+            self.log_err.exception(msg)
         elif level == Notice.ERROR:
-            self.log_obj.error(msg)
+            self.log_err.error(line)
+            self.log_err.error(msg)
         elif level == Notice.CRITICAL:
-            self.log_obj.critical(msg)
+            self.log_err.critical(line)
+            self.log_err.critical(msg)
         else:
             print(msg)
 
