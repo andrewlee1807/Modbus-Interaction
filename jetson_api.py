@@ -90,7 +90,23 @@ class ModelB(Model):
         self._params = ['--input_blob=input_0', '--output-cvg=scores', '--output-bbox=boxes',
                         '--labels=labels/mask.txt'] + \
                        [MODEL_ARG + self.model_dir]
-        # self.__network = None
+
+    def load_model(self):
+        try:
+            net = jetson.inference.detectNet("", self._params, 0.5)
+            self.__network = net
+        except Exception as e:
+            log_obj.export_message(e, Notice.EXCEPTION)
+            # Check file exists or not
+            if check_file_available(self.model_dir):
+                log_obj.export_message("CANNOT LOAD MODEL", Notice.EXCEPTION)
+                return Status.FAILED
+            else:
+                log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
+                return Status.NO_FILE
+        else:
+            log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
+            return Status.FINISHED
 
 
 class Camera:
@@ -180,7 +196,7 @@ class Service:
         # Initialize model
         self.network = None
         self.task = None
-        self.model_name = "resnet18.onnx"
+        self.model_name = "mb1-ssd.onnx"
         self.__status_load_model = self.__load_model()
         self.font = jetson.utils.cudaFont()
 
