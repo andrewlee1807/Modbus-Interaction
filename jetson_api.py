@@ -151,9 +151,15 @@ class Service:
         self.__download_model_result = Status.FAILED
 
         # real time camera showing...
-        import threading
-        t = threading.Thread(target=self.__window_camera)
-        t.start()
+        import argparse
+        parser = argparse.ArgumentParser(description='Process some integers.')
+        parser.add_argument("--camera", choices=(False, True), default=False, help="Open the visual camera")
+        action = next(a for a in parser._actions if "--camera" in a.option_strings)
+        print("--camera", action)
+        #
+        # import threading
+        # t = threading.Thread(target=self.__window_camera)
+        # t.start()
 
     def __load_model(self, model_name=None, model_id=1):
         """
@@ -179,8 +185,8 @@ class Service:
         app = QApplication(sys.argv)
         mainwindow = MainWindowClass(self.camera)
         mainwindow.show()
-        
-        #app.exec_()
+
+        # app.exec_()
         sys.exit(app.exec_())
 
     def get_model_changed_status(self):

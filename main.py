@@ -108,12 +108,12 @@ class ServerSocket():
         return data, packet
 
     def __create_error_message(self, data, error_type):  # => MBAP-FC-VALUE
-        return data["MBAP"] + bytes([data["FC"] + 0x80]) + error_type # error_type define by ErrorCode
+        return data["MBAP"] + bytes([data["FC"] + 0x80]) + error_type  # error_type define by ErrorCode
 
     def inference(self):
         print("start thread to do inference")
         self.last_detection_result = self.service.classification()
-        #self.last_detection_result = status.GOOD
+        # self.last_detection_result = status.GOOD
 
     def do_request(self, data):  # control the jetson's jobs
         if type(data) == dict:
@@ -143,8 +143,8 @@ class ServerSocket():
                             print("Do inference..")
                             self.thread_inference = threading.Thread(target=self.inference())
                             self.thread_inference.start()
-                        #pack = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
-                        #print(pack)
+                        # pack = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
+                        # print(pack)
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Start to download model from url => MBAP-FC-ADDRESS-VALUE (same with do_request)
@@ -189,8 +189,8 @@ class ServerSocket():
                         print("Still processing")
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
-                        self.thread_inference = None # reset the thread
-                        #print("self.last_detection_result: ", self.last_detection_result)
+                        self.thread_inference = None  # reset the thread
+                        # print("self.last_detection_result: ", self.last_detection_result)
                         if type(self.last_detection_result) == bytes:
                             if self.last_detection_result == ErrorCode.NO_MODEL:
                                 print("Error no model")
@@ -202,7 +202,7 @@ class ServerSocket():
                             print("Result of model:", self.last_detection_result)
                             packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + \
                                      two_bytes(self.last_detection_result)
-                    #print("classify:", packet)
+                    # print("classify:", packet)
                     return packet
 
                 # Get the result's changing new model => MBAP-FC-COUNT-VALUE
@@ -348,17 +348,17 @@ class ServerSocket():
                     print(i, end=" ")
                 print()
                 if msg:
-                    #try:
+                    # try:
                     data, packet_exception = self.__extract(msg)
                     print(data)
                     # Do the request
                     packet_response = self.do_request(data)
-                    #print("packet_response:", packet_response)
-                    #print(type(packet_response))
+                    # print("packet_response:", packet_response)
+                    # print(type(packet_response))
                     if type(packet_response) == int:
                         packet_response = packet_exception
-                    #except Exception as e:
-                        #log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
+                    # except Exception as e:
+                    # log_obj.export_message("ERROR AT DO REQUEST, DATA IS NON-DICT", Notice.CRITICAL)
                     #    log_obj.export_message(e, Notice.CRITICAL)
                     #    packet_response = self.__create_error_message(data,
                     #                                                  ErrorCode.NO_WORK)  # should be fixed value error
@@ -404,5 +404,12 @@ class ServerSocket():
 
 
 if __name__ == '__main__':
+    # import argparse
+    #
+    # parser = argparse.ArgumentParser(description='Process some integers.')
+    #
+    # # add args
+    # parser.add_argument("--camera", type=str, default=False, help="Open the visual camera")
+
     jetson_server = ServerSocket()
     jetson_server.start()
