@@ -92,12 +92,12 @@ class Logger:
         #                     datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
         # log_obj = logging.getLogger()
         # log_obj.setLevel(logging.DEBUG)
-        self.log_obj = self.__setup_logger(LOG_FILE, logging.INFO)
-        self.log_err = self.__setup_logger(ERR_FILE, logging.ERROR)
+        self.log_obj = self.__setup_logger('log_' + timestamp + '.log', LOG_FILE, logging.INFO)
+        self.log_err = self.__setup_logger('errors_' + timestamp + '.log', ERR_FILE, logging.ERROR)
 
         self.log_obj.info("Logger object created successfully..")
 
-    def __setup_logger(self, log_file, level=logging.INFO):
+    def __setup_logger(self, name, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
         logger = logging.getLogger(log_file)
         logger.setLevel(level)
