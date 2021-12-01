@@ -3,6 +3,7 @@ import logging
 import logging.config
 import time
 import os
+import inspect
 
 
 class Status:
@@ -81,25 +82,41 @@ def check_file_available(path):
 
 class Logger:
     def __init__(self):
-        file_name = 'logs/' + time.strftime("%Y%m%d%H%M%S") + '.log'
+        timestamp = time.strftime("%Y%m%d%H%M%S")
+        ERR_FILE = 'logs/' + 'errors_' + timestamp + '.log'
+        LOG_FILE = 'logs/' + 'log_' + timestamp + '.log'
         formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
                                       datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
-        logging.basicConfig(filename=file_name,
+        logging.basicConfig(filename=LOG_FILE,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
         log_obj = logging.getLogger()
         log_obj.setLevel(logging.DEBUG)
-        # log_obj = logging.getLogger().addHandler(logging.StreamHandler())
+
+        log_obj.info("Logger object created successfully..")
+        self.log_obj = log_obj
+    
+    def __setup_logger(log_file, level=logging.INFO):
+        """To setup as many loggers as you want"""
+        formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
+                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
+        logging.basicConfig(filename=LOG_FILE,
+                            format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
+                            datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
         screen_handler.setFormatter(formatter)
         logging.getLogger().addHandler(screen_handler)
 
-        log_obj.info("Logger object created successfully..")
-        self.log_obj = log_obj
+        return logger
 
-    def export_message(self, msg, level=0):
+
+    def export_message(self, msg, level=0, *args):
+        #cf = inspect.currentframe()
+        #print("DEBUG", f"{inspect.stack()[1][1]}:{cf.f_back.f_lineno}", *args)
         if level == Notice.INFO:
             self.log_obj.info(msg)
         elif level == Notice.WARNING:

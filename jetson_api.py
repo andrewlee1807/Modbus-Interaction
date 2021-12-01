@@ -44,7 +44,6 @@ class ModelA:
             return Status.FINISHED
 
     def get_network(self):
-        print("Net internal:", self.__network)
         return self.__network
 
     def kill(self):
@@ -153,13 +152,12 @@ class Service:
         # real time camera showing...
         import argparse
         parser = argparse.ArgumentParser(description='Process some integers.')
-        parser.add_argument("--camera", choices=(False, True), default=False, help="Open the visual camera")
-        action = next(a for a in parser._actions if "--camera" in a.option_strings)
-        print("--camera", action)
-        #
-        # import threading
-        # t = threading.Thread(target=self.__window_camera)
-        # t.start()
+        parser.add_argument("--camera", type=bool, choices=(False, True), default=False, help="Open the visual camera")
+        args = parser.parse_args()
+        if args.camera: 
+            import threading
+            t = threading.Thread(target=self.__window_camera)
+            t.start()
 
     def __load_model(self, model_name=None, model_id=1):
         """
