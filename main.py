@@ -112,7 +112,7 @@ class ServerSocket():
 
     def inference(self):
         print("start thread to do inference")
-        self.last_detection_result = self.service.classification()
+        self.last_detection_result = self.service.inference()
         # self.last_detection_result = status.GOOD
 
     def do_request(self, data):  # control the jetson's jobs

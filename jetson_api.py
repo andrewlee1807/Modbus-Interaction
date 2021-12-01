@@ -4,31 +4,22 @@ from RGB_order_OfficialCodeCrop import *
 from utils import *
 from pypylon import pylon
 
-HEIGHT = 256
-WIDTH = 256
 ROOT_MODEL = "models/"  # Storage all models in this path
 MODEL_ARG = "--model="  # argv for load model by jetson
 
 
-class ModelA:
-    """FOR Apple DETECTION"""
-
-    def __init__(self, model_name="resnet18.onnx"):
+class Model:
+    def __init__(self, model_name):
         self.model_dir = ROOT_MODEL + model_name
-        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels.txt'] + \
-                       [MODEL_ARG + self.model_dir]
+        self._params = None
         self.__network = None
 
     def load_model(self):
         # load the recognition network
         net = None
         try:
-            default_params = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0',
-                              '--labels=labels.txt']
-            # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
             net = jetson.inference.imageNet("", self._params)
             self.__network = net
-            # font = jetson.utils.cudaFont()
         except Exception as e:
             log_obj.export_message(e, Notice.EXCEPTION)
             # Check file exists or not
@@ -39,25 +30,67 @@ class ModelA:
                 log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
                 return Status.NO_FILE
         else:
-            # self.font = font
             log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
             return Status.FINISHED
 
     def get_network(self):
         return self.__network
 
-    def kill(self):
-        # TODO:
-        # release memory when change model
-        pass
-
     def __del__(self):
         del self.__network
 
 
-class ModelB:
-    def __init__(self):
-        pass
+class ModelA(Model):
+    """FOR Apple DETECTION"""
+
+    def __init__(self, model_name="resnet18.onnx"):
+        super().__init__(model_name)
+        # self.model_dir = ROOT_MODEL + model_name
+        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels/apple.txt'] + \
+                       [MODEL_ARG + self.model_dir]
+        # self.__network = None
+
+    # def load_model(self):
+    #     # load the recognition network
+    #     net = None
+    #     try:
+    #         default_params = ['--model=resnet-exp1/resnet18.onnx', '--input_blob=input_0', '--output_blob=output_0',
+    #                           '--labels=labels.txt']
+    #         # net = jetson.inference.imageNet("", self._params + list(MODEL_ARG + ROOT_MODEL + self.model_name))
+    #         net = jetson.inference.imageNet("", self._params)
+    #         self.__network = net
+    #         # font = jetson.utils.cudaFont()
+    #     except Exception as e:
+    #         log_obj.export_message(e, Notice.EXCEPTION)
+    #         # Check file exists or not
+    #         if check_file_available(self.model_dir):
+    #             log_obj.export_message("CANNOT LOAD MODEL", Notice.EXCEPTION)
+    #             return Status.FAILED
+    #         else:
+    #             log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
+    #             return Status.NO_FILE
+    #     else:
+    #         # self.font = font
+    #         log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
+    #         return Status.FINISHED
+    #
+    # def get_network(self):
+    #     return self.__network
+    #
+    # def __del__(self):
+    #     del self.__network
+
+
+class ModelB(Model):
+    """FOR Mask Detection"""
+
+    def __init__(self, model_name="mb1-ssd.onnx"):
+        super().__init__(model_name)
+        # self.model_dir = ROOT_MODEL + model_name
+        self._params = ['--input_blob=input_0', '--output-cvg=scores', '--output-bbox=boxes',
+                        '--labels=labels/mask.txt'] + \
+                       [MODEL_ARG + self.model_dir]
+        # self.__network = None
 
 
 class Camera:
@@ -66,34 +99,33 @@ class Camera:
         camera_id: 1: Apple (Basler pulse), 2: Human (regular camera)
         """
         self.camera_id = camera_id
-        self.device = None
+        self.device_bp = None
         self.converter = None
+        self.device_cv = None
 
     def load_camera(self):
         try:
             if self.camera_id == 1:
-                if self.device is None:
+                if self.device_bp is None:
                     camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
                     camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                     converter = pylon.ImageFormatConverter()
                     converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
                     converter.OutputPixelFormat = pylon.PixelType_RGB8packed
-                    self.device = camera
+                    self.device_bp = camera
                     self.converter = converter
                     log_obj.export_message("Camera opened", Notice.INFO)
                 return Status.FINISHED
             else:
+                def make_480p():
+                    cam.set(3, 640)
+                    cam.set(4, 480)
+
+                # if self.device is not None: self.device.StopGrabbing()  # release previous camera
                 cam = cv2.VideoCapture(0)
-                cam.set(cv2.CAP_PROP_FRAME_WIDTH, HEIGHT)
-                cam.set(cv2.CAP_PROP_FRAME_HEIGHT, WIDTH)
-
-                r, frame = cam.read()
-                if not r:
-                    log_obj.export_message("CANNOT CAPTURE THE IMAGE BY OPENCV", Notice.CRITICAL)
-                else:
-                    cv2.imshow("frame", frame)
-
-                cam.release()
+                make_480p()
+                self.device_cv = cam
+                return Status.FINISHED
         except Exception as e:
             log_obj.export_message("CAMERA cannot work successfully", Notice.CRITICAL)
             log_obj.export_message(e, Notice.CRITICAL)
@@ -101,15 +133,22 @@ class Camera:
 
     def get_image(self):
         try:
-            if self.device.IsGrabbing():
-                grabResult = self.device.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
-                if grabResult.GrabSucceeded():
-                    image = self.converter.Convert(grabResult)
-                    img = image.GetArray()
-                    return img
+            if self.camera_id == 1:
+                if self.device_bp.IsGrabbing():
+                    grabResult = self.device_bp.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+                    if grabResult.GrabSucceeded():
+                        image = self.converter.Convert(grabResult)
+                        img = image.GetArray()
+                        return img
+                else:
+                    log_obj.export_message("Camera was closed", Notice.WARNING)
+                    return -1
             else:
-                log_obj.export_message("Camera was closed", Notice.WARNING)
-                return -1
+                r, frame = self.device_cv.read()
+                if not r:
+                    log_obj.export_message("CANNOT CAPTURE THE IMAGE BY OPENCV", Notice.CRITICAL)
+                    return -1
+                return frame
         except Exception as e:
             log_obj.export_message(e, Notice.EXCEPTION)
             log_obj.export_message("Cannot open camera", Notice.EXCEPTION)
@@ -117,9 +156,13 @@ class Camera:
 
     def inject_camera(self):
         try:
-            if self.device is not None:
-                self.device.StopGrabbing()
-                log_obj.export_message("Camera was closed", Notice.INFO)
+            if self.camera_id == 1:
+                if self.device_bp is not None:
+                    self.device_bp.StopGrabbing()
+            else:
+                if self.device_cv is not None:
+                    self.device_cv.release()
+            log_obj.export_message("Camera was closed", Notice.INFO)
             return Status.FINISHED
         except Exception as e:
             log_obj.export_export("CANNOT INJECT THE CAMERA", Notice.ERROR)
@@ -127,14 +170,16 @@ class Camera:
             return Status.FAILED
 
     def __del__(self):
-        del self.device
+        del self.device_bp
         del self.converter
+        del self.device_cv
 
 
 class Service:
     def __init__(self):
         # Initialize model
         self.network = None
+        self.task = None
         self.model_name = "resnet18.onnx"
         self.__status_load_model = self.__load_model()
         self.font = jetson.utils.cudaFont()
@@ -154,25 +199,31 @@ class Service:
         parser = argparse.ArgumentParser(description='Process some integers.')
         parser.add_argument("--camera", type=bool, choices=(False, True), default=False, help="Open the visual camera")
         args = parser.parse_args()
-        if args.camera: 
+        if args.camera:
             import threading
             t = threading.Thread(target=self.__window_camera)
             t.start()
 
-    def __load_model(self, model_name=None, model_id=1):
+    def __load_model(self, model_name=None):
         """
         model_id : 1: ModelA, 2: modelB
         """
         status = Status.FINISHED
         if model_name is None:
             model_name = self.model_name
-        if model_id == 1:
-            model = ModelA(model_name)
+        task_type = TASK.DETECT_DEFECTION
+        model = ModelA(model_name)
+        status = model.load_model()
+
+        if status == Status.FAILED:  # try to another model
+            log_obj.export_message("TRY TO MODEL B", Notice.INFO)
+            model = ModelB(model_name)
             status = model.load_model()
-            if status == Status.FINISHED:  # keep the previous model to prevent the system crash
-                self.network = model.get_network()
-        else:
-            pass
+            task_type = TASK.DETECT_MASK
+
+        if status == Status.FINISHED:  # keep the previous model to prevent the system crash
+            self.network = model.get_network()
+            self.task = task_type
 
         return status
 
@@ -201,25 +252,44 @@ class Service:
     def get_camera_status(self):
         return self.camera_status
 
-    def classification(self):
-        """Classification image: OK or DEFECTIVE
-        """
-        # example_photo = 'data/defective/23945062_20211015_133117_956.tiff'
-        # I = cv2.imread(example_photo)  # load file by opencv
-
+    def inference(self):
         if self.network is None:  # No model is loaded
             log_obj.export_message("NO MODEL", Notice.ERROR)
             return ErrorCode.NO_MODEL
         if self.camera_status != Status.FINISHED:
             log_obj.export_message("NO CAMERA IS READY", Notice.ERROR)
             return ErrorCode.NO_WORK
-
         I = self.camera.get_image()
-
         if type(I) == int:
             return Status.FAILED
-        c = apple_detect(I)
-        if (c.size != 0):
+
+        if self.task == TASK.DETECT_DEFECTION:
+            result = self.classification(I)
+        else:
+            result = self.mask_detection(I)
+
+        return Status.DEFECTIVE if result == 0 else Status.GOOD
+
+    def classification(self, img):
+        """Classification image: OK or DEFECTIVE
+        """
+        # example_photo = 'data/defective/23945062_20211015_133117_956.tiff'
+        # I = cv2.imread(example_photo)  # load file by opencv
+
+        # if self.network is None:  # No model is loaded
+        #     log_obj.export_message("NO MODEL", Notice.ERROR)
+        #     return ErrorCode.NO_MODEL
+        # if self.camera_status != Status.FINISHED:
+        #     log_obj.export_message("NO CAMERA IS READY", Notice.ERROR)
+        #     return ErrorCode.NO_WORK
+        #
+        # I = self.camera.get_image()
+        #
+        # if type(I) == int:
+        #     return Status.FAILED
+
+        c = apple_detect(img)
+        if c.size != 0:
             c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
             img = jetson.utils.cudaFromNumpy(c)  # convert image from numpy
         else:
@@ -239,7 +309,30 @@ class Service:
         # print('Network speed: ' + str(self.network.GetNetworkFPS()))
         print("class_id", class_id)
         # self.network.PrintProfilerTimes()
-        return Status.DEFECTIVE if class_id == 0 else Status.GOOD
+        return class_id
+        # return Status.DEFECTIVE if class_id == 0 else Status.GOOD
+
+    def mask_detection(self, img):
+        jetson_img = jetson.utils.cudaFromNumpy(img)  # convert image from numpy
+
+        detections = self.network.Detect(jetson_img, overlay='box,labels,conf')
+
+        opencv_img = jetson.utils.cudaToNumpy(jetson_img)
+        # Realtime to detect
+        # cv2.imshow("", opencv_img)
+        # cv2.waitKey(1)
+
+        timestamp = time.strftime("%Y%m%d%H%M%S")
+        cv2.imwrite(f"{timestamp}.jpg", opencv_img)
+
+        print("detected {:d} objects in image".format(len(detections)))
+
+        classID = [int(bbox.ClassID) for bbox in detections]
+
+        if (sum(classID) == len(classID)):
+            return 1  # All the mask
+        else:
+            return 0
 
     def __download_model(self):
         import wget

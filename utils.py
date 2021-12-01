@@ -42,6 +42,11 @@ class AI_ACTION_CODE:
     SUSPEND = 0x04 * 2
 
 
+class TASK:
+    DETECT_DEFECTION = 0
+    DETECT_MASK = 1
+
+
 def hex2int(hex):
     return int(hex, 16)  # int.from_bytes(hex)
 
@@ -95,7 +100,6 @@ class Logger:
         self.log_err = self.__setup_logger('errors_' + timestamp, ERR_FILE, logging.ERROR)
         self.log_obj = self.__setup_logger('log_' + timestamp, LOG_FILE, logging.INFO)
 
-
         self.log_obj.info("Logger object created successfully..")
 
     def __setup_logger(self, name, log_file, level=logging.INFO):
@@ -114,7 +118,6 @@ class Logger:
         logger = logging.getLogger(name)
         logger.setLevel(level)
         logger.addHandler(handler)
-
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
