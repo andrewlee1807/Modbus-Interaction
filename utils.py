@@ -92,8 +92,9 @@ class Logger:
         #                     datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
         # log_obj = logging.getLogger()
         # log_obj.setLevel(logging.DEBUG)
-        self.log_obj = self.__setup_logger('log_' + timestamp, LOG_FILE, logging.INFO)
         self.log_err = self.__setup_logger('errors_' + timestamp, ERR_FILE, logging.ERROR)
+        self.log_obj = self.__setup_logger('log_' + timestamp, LOG_FILE, logging.INFO)
+
 
         self.log_obj.info("Logger object created successfully..")
 
