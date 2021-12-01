@@ -92,23 +92,27 @@ class Logger:
         #                     datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
         # log_obj = logging.getLogger()
         # log_obj.setLevel(logging.DEBUG)
-        self.log_obj = self.__setup_logger('log_' + timestamp + '.log', LOG_FILE, logging.INFO)
-        self.log_err = self.__setup_logger('errors_' + timestamp + '.log', ERR_FILE, logging.ERROR)
+        self.log_obj = self.__setup_logger('log_' + timestamp, LOG_FILE, logging.INFO)
+        self.log_err = self.__setup_logger('errors_' + timestamp, ERR_FILE, logging.ERROR)
 
         self.log_obj.info("Logger object created successfully..")
 
     def __setup_logger(self, name, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
+        print("Name:", name)
 
-        # logger = logging.FileHandler(log_file)
+        formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
+                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
+
+        # handler = logging.FileHandler(log_file)
+        # handler.setFormatter(formatter)
         logging.basicConfig(filename=log_file,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
 
         logger = logging.getLogger(name)
         logger.setLevel(level)
-        formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
-                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
+
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
