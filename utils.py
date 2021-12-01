@@ -99,13 +99,16 @@ class Logger:
 
     def __setup_logger(self, name, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
-        logger = logging.getLogger(log_file)
-        logger.setLevel(level)
-        formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
-                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
+
+        # logger = logging.FileHandler(log_file)
         logging.basicConfig(filename=log_file,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
+
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
+                                      datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
