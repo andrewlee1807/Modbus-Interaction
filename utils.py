@@ -95,7 +95,7 @@ class Logger:
         self.log_obj = self.__setup_logger(LOG_FILE, logging.INFO)
         self.log_err = self.__setup_logger(ERR_FILE, logging.ERROR)
 
-        log_obj.info("Logger object created successfully..")
+        self.log_obj.info("Logger object created successfully..")
 
     def __setup_logger(self, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
@@ -104,7 +104,7 @@ class Logger:
         logging.basicConfig(filename=log_file,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
-        logger = logging.getLogger()
+        logger = logging.getLogger(log_file)
         logger.setLevel(level)
 
         # console printer
