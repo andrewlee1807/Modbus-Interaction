@@ -99,13 +99,13 @@ class Logger:
 
     def __setup_logger(self, log_file, level=logging.INFO):
         """To setup as many loggers as you want"""
-        formatter = logging.Formatter(fmt='%(asctime)s %(module)s |Line: %(lineno)d %(levelname)8s | %(message)s',
+        logger = logging.getLogger(log_file)
+        logger.setLevel(level)
+        formatter = logging.Formatter(fmt='%(asctime)s %(module)s | %(message)s',
                                       datefmt='%Y/%m/%d %H:%M:%S')  # %I:%M:%S %p AM|PM format
         logging.basicConfig(filename=log_file,
                             format='%(asctime)s %(module)s,line: %(lineno)d %(levelname)8s | %(message)s',
                             datefmt='%Y/%m/%d %H:%M:%S', filemode='w', level=logging.INFO)
-        logger = logging.getLogger(log_file)
-        logger.setLevel(level)
 
         # console printer
         screen_handler = logging.StreamHandler(stream=sys.stdout)  # stream=sys.stdout is similar to normal print
@@ -117,7 +117,7 @@ class Logger:
     def export_message(self, msg, level=0, *args):
         cf = inspect.currentframe()
         line = f"{inspect.stack()[1][1]}:{cf.f_back.f_lineno}"
-        print(line , *args)
+        print(line, *args)
         if level == Notice.INFO:
             self.log_obj.info(msg)
         elif level == Notice.WARNING:
