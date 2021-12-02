@@ -4,6 +4,7 @@ from RGB_order_OfficialCodeCrop import *
 from utils import *
 from pypylon import pylon
 
+SAMPLE_DIR = "samples/"
 ROOT_MODEL = "models/"  # Storage all models in this path
 MODEL_ARG = "--model="  # argv for load model by jetson
 
@@ -268,6 +269,10 @@ class Service:
         # app.exec_()
         sys.exit(app.exec_())
 
+    def __save_img(self, img):
+        timestamp = time.strftime("%Y%m%d%H%M%S")
+        cv2.imwrite(f"{SAMPLE_DIR + timestamp}.jpg", img)
+
     def get_model_changed_status(self):
         return self.__status_load_model
 
@@ -321,8 +326,7 @@ class Service:
         # if type(I) == int:
         #     return Status.FAILED
 
-        timestamp = time.strftime("%Y%m%d%H%M%S")
-        cv2.imwrite(f"{timestamp}.jpg", img)
+        self.__save_img(img)
 
         c = apple_detect(img)
         if c.size != 0:
@@ -358,8 +362,7 @@ class Service:
         # cv2.imshow("", opencv_img)
         # cv2.waitKey(1)
 
-        timestamp = time.strftime("%Y%m%d%H%M%S")
-        cv2.imwrite(f"{timestamp}.jpg", opencv_img)
+        self.__save_img(opencv_img)
 
         print("detected {:d} objects in image".format(len(detections)))
 
