@@ -220,6 +220,8 @@ class Service:
             t = threading.Thread(target=self.__window_camera)
             t.start()
 
+        print("Initialize", self.network)
+
     def __load_model(self, model_name=None):
         """
         model_id : 1: ModelA, 2: modelB
@@ -271,6 +273,7 @@ class Service:
         return self.camera_status
 
     def inference(self):
+        print("Inference: self.network: ", self.network)
         if self.network is None:  # No model is loaded
             log_obj.export_message("NO MODEL", Notice.ERROR)
             return ErrorCode.NO_MODEL
