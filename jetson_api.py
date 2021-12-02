@@ -47,7 +47,7 @@ class ModelA(Model):
     def __init__(self, model_name="resnet18.onnx"):
         super().__init__(model_name)
         # self.model_dir = ROOT_MODEL + model_name
-        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labels/apple.txt'] + \
+        self._params = ['--input_blob=input_0', '--output_blob=output_0', '--labels=labelss/apple.txt'] + \
                        [MODEL_ARG + self.model_dir]
         # self.__network = None
 
@@ -89,7 +89,7 @@ class ModelB(Model):
         super().__init__(model_name)
         # self.model_dir = ROOT_MODEL + model_name
         self._params = ['--input_blob=input_0', '--output-cvg=scores', '--output-bbox=boxes',
-                        '--labels=labels/mask.txt'] + \
+                        '--labels=labelss/mask.txt'] + \
                        [MODEL_ARG + self.model_dir]
 
     def load_model(self):

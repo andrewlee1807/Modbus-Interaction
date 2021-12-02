@@ -181,8 +181,12 @@ class ServerSocket():
                     value_int = int.from_bytes(data["VALUE"], byteorder='big')
                     check_thread = check_thread_alive(self.thread_change_model)
                     if value_int == Status.ON and check_thread != Status.PROCESSING:
-                        self.thread_change_model = threading.Thread(target=self.service.change_model)
+                        print("Do the thread")
+                        self.thread_change_model = threading.Thread(target=self.service.change_model, args=())
+                        print("Start background")
                         self.thread_change_model.start()
+                        print("Done the thread")
+                    print("RESPONSE")
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Get result's Classification => MBAP-FC-COUNT-VALUE
