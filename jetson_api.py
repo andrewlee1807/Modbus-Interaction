@@ -182,6 +182,7 @@ class Camera:
             if self.camera_id == 1:
                 if self.device_bp is not None:
                     self.device_bp.StopGrabbing()
+                    self.device_bp = None
             else:
                 if self.device_cv is not None:
                     self.device_cv.release()
@@ -203,7 +204,7 @@ class Service:
         # Initialize model
         self.network = None
         self.task = None
-        self.model_name = "mb1-ssd.onnx"
+        self.model_name = "resnet18.onnx"
         self.__status_load_model = self.__load_model()
         self.font = jetson.utils.cudaFont()
 
@@ -298,16 +299,15 @@ class Service:
             return ErrorCode.NO_WORK
         I = self.camera.get_image()
         if type(I) == int:
-            return Status.FAILED
+            return ErrorCode.NO_WORK
 
         if self.task == TASK.DETECT_DEFECTION:
             print("APPLE")
-            result = self.classification(I)
+            return self.classification(I)
         else:
             print("MASK")
             result = self.mask_detection(I)
-
-        return Status.DEFECTIVE if result == 0 else Status.GOOD
+            return Status.DEFECTIVE if result == 0 else Status.GOOD
 
     def classification(self, img):
         """Classification image: OK or DEFECTIVE
@@ -327,11 +327,12 @@ class Service:
         # if type(I) == int:
         #     return Status.FAILED
 
-        self.__save_img(img)
+        #self.__save_img(img)
 
         c = apple_detect(img)
-        if c.size != 0:
-            c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
+        if c is not None:
+            self.__save_img(c) # crop img
+            #c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
             img = jetson.utils.cudaFromNumpy(c)  # convert image from numpy
         else:
             log_obj.export_message("Apple is not detected!", Notice.WARNING)
@@ -350,8 +351,8 @@ class Service:
         # print('Network speed: ' + str(self.network.GetNetworkFPS()))
         print("class_id", class_id)
         # self.network.PrintProfilerTimes()
-        return class_id
-        # return Status.DEFECTIVE if class_id == 0 else Status.GOOD
+        # return class_id
+        return Status.DEFECTIVE if class_id == 0 else Status.GOOD
 
     def mask_detection(self, img):
         img = cv2.resize(img, None, fx=0.5, fy=0.5)  # Scale img:

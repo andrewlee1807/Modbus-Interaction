@@ -89,7 +89,7 @@ class ServerSocket():
             packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
         elif functionCode == 3:
             data = self.modbus_register.readHoldingReigster(msg)
-            packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
+            #packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
         elif functionCode == 4:
             data = self.modbus_register.readInputRegister(msg)
 
@@ -108,6 +108,11 @@ class ServerSocket():
         return data, packet
 
     def __create_error_message(self, data, error_type):  # => MBAP-FC-VALUE
+        r = data["MBAP"] + bytes([data["FC"] + 0x80]) + error_type
+        print("Error code:")
+        for i in r:
+            print(i, end=" ")
+        print()
         return data["MBAP"] + bytes([data["FC"] + 0x80]) + error_type  # error_type define by ErrorCode
 
     def inference(self):
@@ -182,7 +187,7 @@ class ServerSocket():
 
                 # Get result's Classification => MBAP-FC-COUNT-VALUE
                 elif startAddress in [self.get_result_classification]:
-                    print("Get result Classification")
+                    print("Get result Classificati  on")
                     check_thread = check_thread_alive(self.thread_inference)
                     print("check_thread", check_thread)
                     if check_thread == Status.PROCESSING:
@@ -190,7 +195,8 @@ class ServerSocket():
                         packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + two_bytes(Status.PROCESSING)
                     else:
                         self.thread_inference = None  # reset the thread
-                        # print("self.last_detection_result: ", self.last_detection_result)
+                        print("self.last_detection_result: ", self.last_detection_result)
+                        print("self.last_detection_result type: ", type(self.last_detection_result))
                         if type(self.last_detection_result) == bytes:
                             if self.last_detection_result == ErrorCode.NO_MODEL:
                                 print("Error no model")
@@ -198,11 +204,16 @@ class ServerSocket():
                             elif self.last_detection_result == ErrorCode.NO_PRODUCT:
                                 print("Error no product")
                                 packet = self.__create_error_message(data, ErrorCode.NO_PRODUCT)
+                            else:
+                                print("Error no work")
+                                packet = self.__create_error_message(data, ErrorCode.NO_WORK)
+
                         else:
                             print("Result of model:", self.last_detection_result)
                             packet = data["MBAP"] + bytes([data["FC"]]) + bytes([2]) + \
                                      two_bytes(self.last_detection_result)
-                    # print("classify:", packet)
+                    print("classify:", packet)
+                    self.last_detection_result = ErrorCode.NO_WORK
                     return packet
 
                 # Get the result's changing new model => MBAP-FC-COUNT-VALUE
