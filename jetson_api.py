@@ -241,6 +241,8 @@ class Service:
             print("StatusB: ", status)
             task_type = TASK.DETECT_MASK
 
+        print("Status: ", status)
+
         if status == Status.FINISHED:  # keep the previous model to prevent the system crash
             self.network = model.get_network()
             self.task = task_type
