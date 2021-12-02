@@ -304,6 +304,9 @@ class Service:
         # if type(I) == int:
         #     return Status.FAILED
 
+        timestamp = time.strftime("%Y%m%d%H%M%S")
+        cv2.imwrite(f"{timestamp}.jpg", img)
+
         c = apple_detect(img)
         if c.size != 0:
             c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
