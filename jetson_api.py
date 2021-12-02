@@ -108,6 +108,12 @@ class ModelB(Model):
             log_obj.export_message("LOADED MODEL SUCCESSFULLYY", Notice.INFO)
             return Status.FINISHED
 
+    def get_network(self):
+        return self.__network
+
+    def __del__(self):
+        del self.__network
+
 
 class Camera:
     def __init__(self, camera_id=1):
