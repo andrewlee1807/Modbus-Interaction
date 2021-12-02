@@ -354,11 +354,13 @@ class Service:
         # return Status.DEFECTIVE if class_id == 0 else Status.GOOD
 
     def mask_detection(self, img):
+        img = cv2.resize(img, fx=0.5, fy=0.5)  # Scale img:
         jetson_img = jetson.utils.cudaFromNumpy(img)  # convert image from numpy
 
         detections = self.network.Detect(jetson_img, overlay='box,labels,conf')
 
         opencv_img = jetson.utils.cudaToNumpy(jetson_img)
+        opencv_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB)
         # Realtime to detect
         # cv2.imshow("", opencv_img)
         # cv2.waitKey(1)
