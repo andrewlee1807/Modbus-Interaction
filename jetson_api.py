@@ -271,6 +271,7 @@ class Service:
 
     def __save_img(self, img):
         timestamp = time.strftime("%Y%m%d%H%M%S")
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         cv2.imwrite(f"{SAMPLE_DIR + timestamp}.jpg", img)
 
     def get_model_changed_status(self):
