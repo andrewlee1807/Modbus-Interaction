@@ -135,7 +135,6 @@ Dataset
 *pid
 test*
 .py.swp
-*.txt
 *.png
 *.out
 *.save
