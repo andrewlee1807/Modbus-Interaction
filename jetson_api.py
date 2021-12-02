@@ -360,7 +360,7 @@ class Service:
         detections = self.network.Detect(jetson_img, overlay='box,labels,conf')
 
         opencv_img = jetson.utils.cudaToNumpy(jetson_img)
-        opencv_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB)
+        # opencv_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB)
         # Realtime to detect
         # cv2.imshow("", opencv_img)
         # cv2.waitKey(1)
