@@ -203,7 +203,7 @@ class Service:
         # Initialize model
         self.network = None
         self.task = None
-        self.model_name = "mb1-ssd.onnx"
+        self.model_name = "resnet18.onnx"
         self.__status_load_model = self.__load_model()
         self.font = jetson.utils.cudaFont()
 
