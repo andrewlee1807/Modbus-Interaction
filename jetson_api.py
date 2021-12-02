@@ -244,8 +244,10 @@ class Service:
         print("Status: ", status)
 
         if status == Status.FINISHED:  # keep the previous model to prevent the system crash
+            print("Update model to self")
             self.network = model.get_network()
             self.task = task_type
+            print("self.network: ", self.network)
 
         return status
 
