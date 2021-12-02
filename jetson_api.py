@@ -99,13 +99,13 @@ class ModelB(Model):
             log_obj.export_message(e, Notice.EXCEPTION)
             # Check file exists or not
             if check_file_available(self.model_dir):
-                log_obj.export_message("CANNOT LOAD MODEL", Notice.EXCEPTION)
+                log_obj.export_message("CANNOT LOAD MODELL", Notice.EXCEPTION)
                 return Status.FAILED
             else:
-                log_obj.export_message("MODEL FILE IS NOT EXIST", Notice.EXCEPTION)
+                log_obj.export_message("MODEL FILE IS NOT EXISTT", Notice.EXCEPTION)
                 return Status.NO_FILE
         else:
-            log_obj.export_message("LOADED MODEL SUCCESSFULLY", Notice.INFO)
+            log_obj.export_message("LOADED MODEL SUCCESSFULLYY", Notice.INFO)
             return Status.FINISHED
 
 
@@ -230,11 +230,13 @@ class Service:
         task_type = TASK.DETECT_DEFECTION
         model = ModelA(model_name)
         status = model.load_model()
+        print("StatusA: ", status)
 
         if status == Status.FAILED:  # try to another model
             log_obj.export_message("TRY TO MODEL B", Notice.INFO)
             model = ModelB(model_name)
             status = model.load_model()
+            print("StatusB: ", status)
             task_type = TASK.DETECT_MASK
 
         if status == Status.FINISHED:  # keep the previous model to prevent the system crash
@@ -280,8 +282,10 @@ class Service:
             return Status.FAILED
 
         if self.task == TASK.DETECT_DEFECTION:
+            print("APPLE")
             result = self.classification(I)
         else:
+            print("MASK")
             result = self.mask_detection(I)
 
         return Status.DEFECTIVE if result == 0 else Status.GOOD
