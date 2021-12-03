@@ -209,7 +209,7 @@ class Service:
         self.font = jetson.utils.cudaFont()
 
         # Camera control
-        self.camera = Camera()  # default is camera_id: 1: Apple (Basler pulse)
+        self.camera = None  # default is camera_id: 1: Apple (Basler pulse)
         self.camera_status = Status.FAILED  # check camera open/ close/ processing...
         self.open_camera()
 
@@ -280,11 +280,14 @@ class Service:
 
     def open_camera(self):
         self.camera_status = Status.PROCESSING
+        self.camera = Camera()
         self.camera_status = self.camera.load_camera()
 
     def close_camera(self):
         self.camera_status = Status.PROCESSING
         self.camera_status = self.camera.inject_camera()
+        del self.camera
+        self.camera = None
 
     def get_camera_status(self):
         return self.camera_status
@@ -327,12 +330,12 @@ class Service:
         # if type(I) == int:
         #     return Status.FAILED
 
-        #self.__save_img(img)
+        # self.__save_img(img)
 
         c = apple_detect(img)
         if c is not None:
-            self.__save_img(c) # crop img
-            #c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
+            self.__save_img(c)  # crop img
+            # c = cv2.cvtColor(c, cv2.COLOR_BGR2RGB)  # convert to RGB order
             img = jetson.utils.cudaFromNumpy(c)  # convert image from numpy
         else:
             log_obj.export_message("Apple is not detected!", Notice.WARNING)
