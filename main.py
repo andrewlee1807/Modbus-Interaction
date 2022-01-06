@@ -1,4 +1,5 @@
 import threading
+from multiprocessing import Pool, cpu_count
 import socket
 from myconfig import myconfig
 from lib.modbus.config import config
@@ -55,6 +56,7 @@ class ServerSocket():
         self.thread_inference = None  # includes: Action(start, stop,..)
         self.thread_downloading = None  # Thread to download model
         self.thread_camera_action = None  # Thread to control camera
+        self.pool = Pool(processes=cpu_count() - 1)  # define number of thread can run parallel
 
     def updateClient(self, addr, isConnect=False):
         """Connection of client's status"""
@@ -89,7 +91,7 @@ class ServerSocket():
             packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
         elif functionCode == 3:
             data = self.modbus_register.readHoldingReigster(msg)
-            #packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
+            # packet = data["MBAP"] + bytes([data["FC"]]) + data["COUNT"] + data["VALUE"]
         elif functionCode == 4:
             data = self.modbus_register.readInputRegister(msg)
 
@@ -146,8 +148,7 @@ class ServerSocket():
                         # create thread to execute
                         if self.thread_inference is None:
                             print("Do inference..")
-                            self.thread_inference = threading.Thread(target=self.inference())
-                            self.thread_inference.start()
+                            self.thread_inference = self.pool.apply_async(self.inference)
                         # pack = data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
                         # print(pack)
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
@@ -159,8 +160,7 @@ class ServerSocket():
                     check_thread = check_thread_alive(self.thread_downloading)
                     print(check_thread)
                     if value_int == Status.ON and check_thread != Status.PROCESSING:  # Free thread to download
-                        self.thread_downloading = threading.Thread(target=self.service.download_model)
-                        self.thread_downloading.start()
+                        self.thread_downloading = self.pool.apply_async(self.service.download_model())
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
                 # Get the result's download url => MBAP-FC-COUNT-VALUE
@@ -182,10 +182,7 @@ class ServerSocket():
                     check_thread = check_thread_alive(self.thread_change_model)
                     if value_int == Status.ON and check_thread != Status.PROCESSING:
                         print("Do the thread")
-                        self.thread_change_model = threading.Thread(target=self.service.change_model, args=())
-                        print("Start background")
-                        self.thread_change_model.start()
-                        print("Done the thread")
+                        self.thread_change_model = self.pool.apply_async(self.service.change_model)
                     print("RESPONSE")
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 
@@ -240,11 +237,9 @@ class ServerSocket():
                     check_thread = check_thread_alive(self.thread_camera_action)
                     if check_thread != Status.PROCESSING:
                         if value_int == Status.DETECTOR:  # open camera
-                            self.thread_camera_action = threading.Thread(target=self.service.open_camera)
-                            self.thread_camera_action.start()
+                            self.thread_camera_action = self.pool.apply_async(self.service.open_camera)
                         else:  # close camera
-                            self.thread_camera_action = threading.Thread(target=self.service.close_camera)
-                            self.thread_camera_action.start()
+                            self.thread_camera_action = self.pool.apply_async(self.service.close_camera)
 
                     return data["MBAP"] + bytes([data["FC"]]) + data["ADDRESS"] + data["VALUE"]  # same with do_request
 

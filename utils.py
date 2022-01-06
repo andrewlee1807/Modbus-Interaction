@@ -81,6 +81,18 @@ def check_thread_alive(thread):
         print(e)
 
 
+def check_process_alive(rs):
+    try:
+        if rs is None:  # no process started before
+            return Status.FAILED
+        elif rs.ready():  # finish
+            return Status.FINISHED
+        else:  # processing
+            return Status.PROCESSING
+    except Exception as e:
+        print(e)
+
+
 def check_file_available(path):
     return os.path.isfile(path)
 
